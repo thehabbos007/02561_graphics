@@ -1,0 +1,26 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="milligram.css" />
+  </header>
+  <!-- Decided against co-locating script file, as I want contained html files.-->
+
+  <canvas id="view" width="512" height="512"></canvas>
+
+  <script src="../common/webgl-utils.js"></script>
+  <script src="../common/initShaders.js"></script>
+  <script src="../common/MV.js"></script>
+
+  <script>
+    function init() {
+      canvas = document.getElementById("view");
+      gl = WebGLUtils.setupWebGL(canvas);
+      if (!gl) {
+        alert("WebGL isn’t available");
+      }
+      gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+    window.onload = init;
+  </script>
+</html>

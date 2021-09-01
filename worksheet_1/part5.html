@@ -1,14 +1,24 @@
 <html>
   <header>
     <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
   </header>
-  <input id="range" type="range" min="3" max="100" value="50" />
+  <p>Slider to set <i>n</i></p>
+  <input
+    id="range"
+    type="range"
+    min="3"
+    max="100"
+    value="50"
+    style="width: 512px"
+  />
   <br />
   <canvas id="view" width="512" height="512"></canvas>
 
-  <script src="webgl-utils.js"></script>
-  <script src="initShaders.js"></script>
-  <script src="MV.js"></script>
+  <script src="../common/webgl-utils.js"></script>
+  <script src="../common/initShaders.js"></script>
+  <script src="../common/MV.js"></script>
+
   <script id="vertex-shader" type="x-shader/x-vertex">
     attribute vec4 vPosition;
 
@@ -28,11 +38,11 @@
     const radius = 0.5;
     const defaultVal = 50;
     const initial = vec2(0, 0);
-    var vertices = [];
-    var canvas;
-    var range;
-    var gl;
-    var theta = 0
+    let vertices = [];
+    let canvas;
+    let range;
+    let gl;
+    let theta = 0;
 
     const vecFromIdx = (idx, factor) => {
       return vec2(
@@ -41,7 +51,7 @@
       );
     };
 
-    document.getElementById("range").onchange = (target) => {
+    document.getElementById("range").oninput = (target) => {
       render_with_n(parseInt(target.srcElement.value));
     };
 
@@ -72,14 +82,14 @@
       gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
-      var program = initShaders(gl, "vertex-shader", "fragment-shader");
+      let program = initShaders(gl, "vertex-shader", "fragment-shader");
       gl.useProgram(program);
 
-      var bufferId = gl.createBuffer();
+      let bufferId = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, bufferId);
       gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
 
-      var vPosition = gl.getAttribLocation(program, "vPosition");
+      let vPosition = gl.getAttribLocation(program, "vPosition");
       gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(vPosition);
       render_with_n();
