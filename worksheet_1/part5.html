@@ -21,11 +21,23 @@
 
   <script id="vertex-shader" type="x-shader/x-vertex">
     attribute vec4 vPosition;
+    uniform float time;
 
-    void
-    main()
+    float circularOut(float t) {
+      return sqrt((2.0 - t) * t);
+    }
+
+    float rangeMap(float value, float fromMin, float fromMax, float toMin, float toMax) {
+      return toMin + (value - fromMin) * (toMax - toMin) / (fromMax - fromMin);
+    }
+
+    void main()
     {
+        float easedValue = circularOut(rangeMap(sin(time), -1.0, 1.0, 0.0, 1.0));
+        float yPosition = rangeMap(easedValue, 0.0, 1.0, -0.5, 0.5);
+
         gl_Position = vPosition;
+        gl_Position.y += yPosition;
     }
   </script>
   <script id="fragment-shader" type="x-shader/x-fragment">
@@ -37,12 +49,15 @@
   <script>
     const radius = 0.5;
     const defaultVal = 50;
-    const initial = vec2(0, 0);
+    let center = vec2(0, 0);
     let vertices = [];
+    let timeLoc;
     let canvas;
     let range;
     let gl;
     let theta = 0;
+    let vPosition;
+    let time = 0;
 
     const vecFromIdx = (idx, factor) => {
       return vec2(
@@ -50,6 +65,8 @@
         radius * Math.sin(idx * factor)
       );
     };
+    const clampRange = (input, fromMin, fromMax, toMin, toMax) =>
+      ((input - fromMin) * (toMax - toMin)) / (fromMax - fromMin) + toMin;
 
     document.getElementById("range").oninput = (target) => {
       render_with_n(parseInt(target.srcElement.value));
@@ -60,15 +77,15 @@
       const factor = (2 * Math.PI) / n;
       vertices = Array.apply(0, Array(n)).map((_, i) => vecFromIdx(i, factor));
       gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLE_FAN, 0, vertices.length);
+      gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
     }
 
     function render() {
       gl.clear(gl.COLOR_BUFFER_BIT);
-      theta += 0.1;
-      gl.uniform1f(thetaLoc, theta);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      time += 0.075;
+      gl.uniform1f(timeLoc, time);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.TRIANGLE_FAN, 0, vertices.length);
 
       requestAnimationFrame(render);
     }
@@ -89,10 +106,14 @@
       gl.bindBuffer(gl.ARRAY_BUFFER, bufferId);
       gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
 
-      let vPosition = gl.getAttribLocation(program, "vPosition");
-      gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
+      timeLoc = gl.getUniformLocation(program, "time");
+      gl.uniform2fv(timeLoc, center);
+
+      vPosition = gl.getAttribLocation(program, "vPosition");
       gl.enableVertexAttribArray(vPosition);
+
       render_with_n();
+      render();
     }
     window.onload = init;
   </script>

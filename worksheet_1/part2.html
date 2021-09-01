@@ -15,7 +15,7 @@
     attribute vec4 a_Position;
     void main() {
         gl_Position = a_Position;
-        gl_PointSize = 10.0;
+        gl_PointSize = 20.0;
     }
   </script>
   <script id="fragment-shader" type="x-shader/x-fragment">
@@ -31,7 +31,7 @@
       if (!gl) {
         alert("WebGL isn’t available");
       }
-      gl.clearColor(1.0, 1.0, 1.0, 1.0);
+      gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
       let program = initShaders(gl, "vertex-shader", "fragment-shader");
@@ -51,7 +51,10 @@
           vertices[idx][0] = Math.random() * 2 - 1;
           vertices[idx][1] = Math.random() * 2 - 1;
         }
+
         gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
+        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
         gl.drawArrays(gl.POINTS, 0, 3);
       }, 300);
       gl.clear(gl.COLOR_BUFFER_BIT);
