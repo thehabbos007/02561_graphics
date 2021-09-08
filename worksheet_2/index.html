@@ -80,14 +80,14 @@
       gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
     }
 
-    function tick() {
+    function render() {
       gl.clear(gl.COLOR_BUFFER_BIT);
       time += 0.075;
       gl.uniform1f(timeLoc, time);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_FAN, 0, vertices.length);
 
-      requestAnimationFrame(tick);
+      requestAnimationFrame(render);
     }
 
     function init() {
@@ -113,7 +113,7 @@
       gl.enableVertexAttribArray(vPosition);
 
       render_with_n();
-      tick();
+      render();
     }
     window.onload = init;
   </script>
