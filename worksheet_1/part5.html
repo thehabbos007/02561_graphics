@@ -3,118 +3,122 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="../milligram.css" />
   </header>
-  <p>Slider to set <i>n</i></p>
-  <input
-    id="range"
-    type="range"
-    min="3"
-    max="100"
-    value="50"
-    style="width: 512px"
-  />
-  <br />
-  <canvas id="view" width="512" height="512"></canvas>
+  <body>
+    <p>Slider to set <i>n</i></p>
+    <input
+      id="range"
+      type="range"
+      min="3"
+      max="100"
+      value="50"
+      style="width: 512px"
+    />
+    <br />
+    <canvas id="view" width="512" height="512"></canvas>
 
-  <script src="../common/webgl-utils.js"></script>
-  <script src="../common/initShaders.js"></script>
-  <script src="../common/MV.js"></script>
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
 
-  <script id="vertex-shader" type="x-shader/x-vertex">
-    attribute vec4 vPosition;
-    uniform float time;
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec4 vPosition;
+      uniform float time;
 
-    float circularOut(float t) {
-      return sqrt((2.0 - t) * t);
-    }
-
-    float rangeMap(float value, float fromMin, float fromMax, float toMin, float toMax) {
-      return toMin + (value - fromMin) * (toMax - toMin) / (fromMax - fromMin);
-    }
-
-    void main()
-    {
-        float easedValue = circularOut(rangeMap(sin(time), -1.0, 1.0, 0.0, 1.0));
-        float yPosition = rangeMap(easedValue, 0.0, 1.0, -0.5, 0.5);
-
-        gl_Position = vPosition;
-        gl_Position.y += yPosition;
-    }
-  </script>
-  <script id="fragment-shader" type="x-shader/x-fragment">
-    precision mediump float;
-    void main() {
-        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-    }
-  </script>
-  <script>
-    const radius = 0.5;
-    const defaultVal = 50;
-    let center = vec2(0, 0);
-    let vertices = [];
-    let timeLoc;
-    let canvas;
-    let range;
-    let gl;
-    let theta = 0;
-    let vPosition;
-    let time = 0;
-
-    const vecFromIdx = (idx, factor) => {
-      return vec2(
-        radius * Math.cos(idx * factor),
-        radius * Math.sin(idx * factor)
-      );
-    };
-    const clampRange = (input, fromMin, fromMax, toMin, toMax) =>
-      ((input - fromMin) * (toMax - toMin)) / (fromMax - fromMin) + toMin;
-
-    document.getElementById("range").oninput = (target) => {
-      render_with_n(parseInt(target.srcElement.value));
-    };
-
-    function render_with_n(number) {
-      const n = number ?? defaultVal;
-      const factor = (2 * Math.PI) / n;
-      vertices = Array.apply(0, Array(n)).map((_, i) => vecFromIdx(i, factor));
-      gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
-      gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
-    }
-
-    function tick() {
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      time += 0.075;
-      gl.uniform1f(timeLoc, time);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLE_FAN, 0, vertices.length);
-
-      requestAnimationFrame(tick);
-    }
-
-    function init() {
-      canvas = document.getElementById("view");
-      gl = WebGLUtils.setupWebGL(canvas);
-      if (!gl) {
-        alert("WebGL isn’t available");
+      float circularOut(float t) {
+        return sqrt((2.0 - t) * t);
       }
-      gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
 
-      let program = initShaders(gl, "vertex-shader", "fragment-shader");
-      gl.useProgram(program);
+      float rangeMap(float value, float fromMin, float fromMax, float toMin, float toMax) {
+        return toMin + (value - fromMin) * (toMax - toMin) / (fromMax - fromMin);
+      }
 
-      let bufferId = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, bufferId);
-      gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
+      void main()
+      {
+          float easedValue = circularOut(rangeMap(sin(time), -1.0, 1.0, 0.0, 1.0));
+          float yPosition = rangeMap(easedValue, 0.0, 1.0, -0.5, 0.5);
 
-      timeLoc = gl.getUniformLocation(program, "time");
-      gl.uniform2fv(timeLoc, center);
+          gl_Position = vPosition;
+          gl_Position.y += yPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      void main() {
+          gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+      }
+    </script>
+    <script>
+      const radius = 0.5;
+      const defaultVal = 50;
+      let center = vec2(0, 0);
+      let vertices = [];
+      let timeLoc;
+      let canvas;
+      let range;
+      let gl;
+      let theta = 0;
+      let vPosition;
+      let time = 0;
 
-      vPosition = gl.getAttribLocation(program, "vPosition");
-      gl.enableVertexAttribArray(vPosition);
+      const vecFromIdx = (idx, factor) => {
+        return vec2(
+          radius * Math.cos(idx * factor),
+          radius * Math.sin(idx * factor)
+        );
+      };
+      const clampRange = (input, fromMin, fromMax, toMin, toMax) =>
+        ((input - fromMin) * (toMax - toMin)) / (fromMax - fromMin) + toMin;
 
-      render_with_n();
-      tick();
-    }
-    window.onload = init;
-  </script>
+      document.getElementById("range").oninput = (target) => {
+        render_with_n(parseInt(target.srcElement.value));
+      };
+
+      function render_with_n(number) {
+        const n = number ?? defaultVal;
+        const factor = (2 * Math.PI) / n;
+        vertices = Array.apply(0, Array(n)).map((_, i) =>
+          vecFromIdx(i, factor)
+        );
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
+        gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
+      }
+
+      function tick() {
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        time += 0.075;
+        gl.uniform1f(timeLoc, time);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, vertices.length);
+
+        requestAnimationFrame(tick);
+      }
+
+      function init() {
+        canvas = document.getElementById("view");
+        gl = WebGLUtils.setupWebGL(canvas);
+        if (!gl) {
+          alert("WebGL isn’t available");
+        }
+        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        let program = initShaders(gl, "vertex-shader", "fragment-shader");
+        gl.useProgram(program);
+
+        let bufferId = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, bufferId);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
+
+        timeLoc = gl.getUniformLocation(program, "time");
+        gl.uniform1f(timeLoc, center);
+
+        vPosition = gl.getAttribLocation(program, "vPosition");
+        gl.enableVertexAttribArray(vPosition);
+
+        render_with_n();
+        tick();
+      }
+      window.onload = init;
+    </script>
+  </body>
 </html>
