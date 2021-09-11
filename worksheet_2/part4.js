@@ -5,10 +5,13 @@ const colors = [
   ["Cornflower", vec3(0.3921, 0.5843, 0.9294)],
 ];
 
+const POINT = "point";
+const TRIANGLE = "triangle";
+const CIRCLE = "circle";
 const modes = {
-  point: "&#11037; point",
-  triangle: "&#9698; triangle",
-  circle: "&#9679; circle",
+  [POINT]: "&#11037; point",
+  [TRIANGLE]: "&#9698; triangle",
+  [CIRCLE]: "&#9679; circle",
 };
 
 const canvas = document.getElementById("view");
@@ -28,15 +31,14 @@ const modeBtns = document.querySelectorAll(".draw-mode");
 
 modeBtns.forEach((el) => {
   el.onclick = (e) => {
-    const idx = parseInt(e.target.getAttribute("data-idx"));
+    const idx = e.target.getAttribute("data-idx");
     currentDrawMode = idx;
-    temporary = [];
   };
 });
 
 let currentDrawColor = colors[0][1];
 let currentClearColorIdx = 3;
-let currentDrawMode = "point";
+let currentDrawMode = POINT;
 
 let drawContext;
 
@@ -47,23 +49,38 @@ const clearColor = (drawContext, colorIdx) => {
 
 const circleVerts = 50;
 class DrawContext {
-  constructor(gl, countOfEachType) {
+  constructor(gl, maxOfEachType) {
     this.gl = gl;
     // Constants
-    this.maxOfEachType = countOfEachType;
-    this.pointsStartAt = 0;
-    this.trianglesStartAt = this.pointsStartAt + countOfEachType;
-    this.circlesStartAt = this.trianglesStartAt + countOfEachType * 3;
-    this.totalVerts = this.circlesStartAt + countOfEachType * circleVerts;
+    this.maxOfEachType = maxOfEachType;
+    this.typeStartsAt = {
+      [POINT]: 0,
+      [TRIANGLE]: 0 + maxOfEachType,
+      [CIRCLE]: 0 + maxOfEachType + maxOfEachType * 3,
+    };
+    this.typeIndexOffsetFactor = {
+      [POINT]: 1,
+      [TRIANGLE]: 3,
+      [CIRCLE]: circleVerts + 1,
+    };
+    this.totalVerts = this.typeStartsAt[CIRCLE] + maxOfEachType * circleVerts;
 
     // Drawing state
+    this.typeCounts = {
+      [POINT]: 0,
+      [TRIANGLE]: 0,
+      [CIRCLE]: 0,
+    };
     this.pointsCount = 0;
     this.trianglesCount = 0;
     this.circlesCount = 0;
+    this.temporary = [];
 
     let program = initShaders(gl, "vertex-shader", "fragment-shader");
     this.program = program;
     gl.useProgram(program);
+
+    const stride = 6 * Float32Array.BYTES_PER_ELEMENT;
 
     let pointBuffer = gl.createBuffer();
     this.pointBuffer = pointBuffer;
@@ -73,25 +90,18 @@ class DrawContext {
       // this is the position, size and color
       // 2 vecs where first is
       // [x, y, pointsize] and [r, g, b]
-      this.totalVerts * sizeof["vec3"] * 2,
-      gl.STREAM_DRAW
+      this.totalVerts * stride,
+      gl.STATIC_DRAW
     );
 
-    const stride = 6 * Float32Array.BYTES_PER_ELEMENT;
+    const colorOffset = stride / 2;
 
     let vPoint = gl.getAttribLocation(program, "a_Point");
     gl.vertexAttribPointer(vPoint, 3, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(vPoint);
 
     let vColor = gl.getAttribLocation(program, "a_Color");
-    gl.vertexAttribPointer(
-      vColor,
-      3,
-      gl.FLOAT,
-      false,
-      stride,
-      3 * Float32Array.BYTES_PER_ELEMENT
-    );
+    gl.vertexAttribPointer(vColor, 3, gl.FLOAT, false, stride, colorOffset);
     gl.enableVertexAttribArray(vColor);
 
     this.attributeByteLength = stride;
@@ -116,16 +126,72 @@ class DrawContext {
     );
   }
 
-  render() {
-    this.clearBackground();
-    this.gl.drawArrays(this.gl.POINTS, this.pointsStartAt, this.pointsCount);
+  // Points are temporarily used as a middle ground before
+  // forming triangles and circles.
+  pushTemporary(pointAndColor) {
+    const index = this.nextIdxFor(POINT);
+    this.pushPointData(index, pointAndColor);
+    this.temporary.push(pointAndColor);
   }
 
-  drawPoint(posAndSize, color) {
-    const index = this.pointsStartAt + this.pointsCount;
-    this.pushPointData(index, [posAndSize, color]);
+  temporaryLengthEquals(length) {
+    return this.temporary.length === length;
+  }
 
-    this.pointsCount = (this.pointsCount + 1) % this.maxOfEachType;
+  popTemporaries(amount) {
+    if (!this.temporaryLengthEquals(amount))
+      throw new Error("Temporary length mismatch");
+
+    const points = [...this.temporary];
+    this.clearTemporary();
+
+    return points;
+  }
+
+  clearTemporary() {
+    const temporaryPointLength = this.temporary.length;
+    this.typeCounts[POINT] -= temporaryPointLength;
+    this.temporary.length = 0;
+  }
+
+  render() {
+    this.clearBackground();
+    this.gl.drawArrays(
+      this.gl.POINT,
+      this.typeStartsAt[POINT],
+      this.typeCounts[POINT]
+    );
+    this.gl.drawArrays(
+      this.gl.TRIANGLES,
+      this.typeStartsAt[TRIANGLE],
+      this.typeCounts[TRIANGLE] * 3
+    );
+  }
+
+  nextIdxFor = (type) => {
+    const nextIdx =
+      this.typeStartsAt[type] +
+      this.typeCounts[type] * this.typeIndexOffsetFactor[type];
+    this.typeCounts[type] = (this.typeCounts[type] + 1) % this.maxOfEachType;
+    return nextIdx;
+  };
+
+  drawPoint(pointAndColor) {
+    this.pushPointData(this.nextIdxFor(POINT), pointAndColor);
+  }
+
+  drawTriangle([[x, y, _], color]) {
+    const twoPreviousPoints = this.popTemporaries(2).map(
+      ([[x, y, _], color]) => [x, y, 0, ...color]
+    );
+
+    this.pushPointData(this.nextIdxFor(TRIANGLE), [
+      x,
+      y,
+      0,
+      ...color,
+      ...flatten(twoPreviousPoints),
+    ]);
   }
 }
 
@@ -143,10 +209,27 @@ const init = () => {
     const posAndSize = vec3(
       (2 * (e.clientX - bbox.left)) / canvas.width - 1,
       (2 * (canvas.height - e.clientY + bbox.top - 1)) / canvas.height - 1,
-      currentDrawMode === "point" ? startingPointSize : 0.0
+      startingPointSize
     );
 
-    drawContext.drawPoint(posAndSize, currentDrawColor);
+    const pointAndColor = [posAndSize, currentDrawColor];
+
+    switch (currentDrawMode) {
+      case POINT:
+        drawContext.drawPoint(pointAndColor);
+        break;
+      case TRIANGLE:
+        if (drawContext.temporaryLengthEquals(2)) {
+          drawContext.drawTriangle(pointAndColor);
+        } else {
+          drawContext.pushTemporary(pointAndColor);
+        }
+        break;
+
+      default:
+        break;
+    }
+
     drawContext.render();
   };
 
