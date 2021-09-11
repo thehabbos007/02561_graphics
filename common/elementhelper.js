@@ -17,7 +17,7 @@ const addButtonElement = (el, id, text, idx) => {
   button.className = "draw-mode";
   button.id = id;
   button.innerHTML = text;
-  button.setAttribute("data-idx", idx);
+  button.setAttribute("data-idx", id);
   el.appendChild(button);
 };
 

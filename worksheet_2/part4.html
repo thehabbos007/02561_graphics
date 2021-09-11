@@ -56,9 +56,9 @@
     <script src="../common/elementhelper.js"></script>
 
     <script id="vertex-shader" type="x-shader/x-vertex">
-      attribute vec4 a_Point;
-      attribute vec4 a_Color;
-      varying vec4 v_Color;
+      attribute vec3 a_Point;
+      attribute vec3 a_Color;
+      varying vec3 v_Color;
       void main() {
         v_Color = a_Color;
         gl_Position.x = a_Point.x;
@@ -66,243 +66,21 @@
         gl_Position.z = 0.0;
         gl_Position.w = 1.0;
 
-
         gl_PointSize = a_Point.z;
       }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
       precision mediump float;
-      varying vec4 v_Color;
+      varying vec3 v_Color;
 
       void main() {
-          gl_FragColor = v_Color;
+          gl_FragColor.x = v_Color.x;
+          gl_FragColor.y = v_Color.y;
+          gl_FragColor.z = v_Color.z;
+          gl_FragColor.w = 1.0;
       }
     </script>
 
-    <script>
-      const colors = [
-        ["Red", vec3(1, 0, 0)],
-        ["Green", vec3(0, 1, 0)],
-        ["Blue", vec3(0, 0, 1)],
-        ["Cornflower", vec3(0.3921, 0.5843, 0.9294)],
-      ];
-
-      const modeButtons = [
-        ["point", "&#11037; point"],
-        ["triangle", "&#9698; triangle"],
-        ["circle", "&#9679; circle"],
-      ];
-
-      const byteCount = 6;
-      const maxPoints = 400 * byteCount;
-      const maxTriangles = 400 * byteCount;
-      const maxCircles = 400;
-      const circleVerts = 50 * byteCount;
-
-      const pointStartsAt = 0;
-      const trianglesStartsAt = maxPoints;
-      const circlesStartAt = maxPoints + maxTriangles * 3;
-
-      const maxVerts = circlesStartAt + maxCircles * circleVerts;
-
-      const canvas = document.getElementById("view");
-      const bbox = canvas.getBoundingClientRect();
-      const startingPointSize = 10.0;
-
-      let gl;
-
-      const drawColorEl = document.getElementById("draw-color");
-      const clearColorEl = document.getElementById("clear-color");
-      const clearColorBtnEl = document.getElementById("clear-color-btn");
-      drawColorEl.size = colors.length;
-      addSelectElements(drawColorEl, colors, 0);
-      addSelectElements(clearColorEl, colors, 3);
-      addButtonElements(document.getElementById("mode-btns"), modeButtons);
-      const modeBtns = document.querySelectorAll(".draw-mode");
-
-      modeBtns.forEach((el) => {
-        el.onclick = (e) => {
-          const idx = parseInt(e.target.getAttribute("data-idx"));
-          currentDrawMode = idx;
-          temporary = [];
-        };
-      });
-      var temporary;
-      let pointAmount = 0;
-      let triangleAmount = 0;
-      let circleAmount = 0;
-
-      let currentDrawColor = colors[0][1];
-      let currentClearColorIdx = 3;
-      let currentDrawMode = 0;
-
-      const clearColor = (gl, colorIdx) => {
-        const colorVec = colors[colorIdx][1];
-        gl.clearColor(...colorVec, 1.0);
-      };
-
-      const splitAtNonincreasing = (arr, jump = 1) => {
-        return arr.reduce((r, n) => {
-          const lastSubArray = r[r.length - 1];
-
-          if (
-            !lastSubArray ||
-            lastSubArray[lastSubArray.length - 1] !== n - jump
-          ) {
-            r.push([]);
-          }
-
-          r[r.length - 1].push(n);
-
-          return r;
-        }, []);
-      };
-
-      const posAndSizeLength = ([v1x, v1y], [v2x, v2y]) =>
-        Math.sqrt(Math.pow(v2x - v1x, 2) + Math.pow(v2y - v1y, 2));
-
-      const vecFromIdx = ([ox, oy], idx, radius, factor) => {
-        return vec3(
-          ox + radius * Math.cos(idx * factor),
-          oy + radius * Math.sin(idx * factor),
-          0
-        );
-      };
-
-      const renderObjects = (gl, points, triangles) => {
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.drawArrays(gl.POINTS, pointStartsAt, pointAmount);
-        gl.drawArrays(gl.TRIANGLES, trianglesStartsAt, triangleAmount * 3);
-        for (let idx = 0; idx < circleAmount; idx++) {
-          gl.drawArrays(
-            gl.TRIANGLE_FAN,
-            circleStart + circleVerts * i,
-            circleVerts
-          );
-        }
-      };
-
-      const init = () => {
-        gl = WebGLUtils.setupWebGL(canvas);
-
-        if (!gl) {
-          alert("WebGL isn’t available");
-        }
-
-        let program = initShaders(gl, "vertex-shader", "fragment-shader");
-        gl.useProgram(program);
-        clearColor(gl, currentClearColorIdx);
-
-        let points = [];
-        let triangles = [];
-        let circles = [];
-        temporary = [];
-
-        let pointBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, pointBuffer);
-        gl.bufferData(
-          gl.ARRAY_BUFFER,
-          (maxVerts * sizeof["vec3"]) / 2,
-          gl.STREAM_DRAW
-        );
-        let vPoint = gl.getAttribLocation(program, "a_Point");
-        gl.vertexAttribPointer(vPoint, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(vPoint);
-
-        let colorBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-        gl.bufferData(
-          gl.ARRAY_BUFFER,
-          (maxVerts * sizeof["vec3"]) / 2,
-          gl.STATIC_DRAW
-        );
-        let vColor = gl.getAttribLocation(program, "a_Color");
-        gl.vertexAttribPointer(vColor, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(vColor);
-
-        gl.clear(gl.COLOR_BUFFER_BIT);
-
-        const pointAndColorAtIdx = (posAndSize, idx, color) => {
-          gl.bindBuffer(gl.ARRAY_BUFFER, pointBuffer);
-          gl.bufferSubData(gl.ARRAY_BUFFER, idx, flatten(posAndSize));
-
-          gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-          gl.bufferSubData(gl.ARRAY_BUFFER, idx, flatten(color));
-        };
-
-        const pushCircle = (offset, center, radiusPos) => {
-          const radius = posAndSizeLength(center, radiusPos);
-          const factor = (2 * Math.PI) / n;
-          let vertices = Array.apply(0, Array(n)).map((_, i) =>
-            vecFromIdx(center, i, factor, radius)
-          );
-
-          let colors = Array.apply(0, Array(n)).map((_, i) => currentDrawColor);
-          pointAndColorAtIdx(vertices, offset, colors);
-
-          return n * 3;
-        };
-
-        canvas.onclick = (e) => {
-          const posAndSize = vec3(
-            (2 * (e.clientX - bbox.left)) / canvas.width - 1,
-            (2 * (canvas.height - e.clientY + bbox.top - 1)) / canvas.height -
-              1,
-            currentDrawMode === 0 ? startingPointSize : 0.0
-          );
-
-          if (currentDrawMode == 0) {
-            let idxOffset = pointStartsAt + pointAmount * byteCount;
-            pointAndColorAtIdx(posAndSize, idxOffset, currentDrawColor);
-            //points.push(index);
-            pointAmount = (pointAmount + 1) % maxPoints;
-          } else if (currentDrawMode == 1) {
-            const idxOffset =
-              trianglesStartsAt + triangleAmount * 3 + temporary.length;
-
-            if (temporary.length == 2) {
-              pointAndColorAtIdx(posAndSize, idxOffset, currentDrawColor);
-              temporary = [];
-              triangleAmount = (triangleAmount + 1) % maxTriangles;
-            } else {
-              pointAndColorAtIdx(posAndSize, idxOffset, currentDrawColor);
-              temporary.push(idxOffset);
-            }
-          } else {
-            let idxOffset = circlesStartAt + circleAmount;
-            if (temporary.length == 1) {
-              let [offset, firstPos] = temporary.pop();
-              //circles.push(offset);
-              maybeMorePoints = pushCircle(offset, firstPos, posAndSize);
-              temporary = [];
-              circleAmount = (circleAmount + 1) % maxCircles;
-            } else {
-              pointAndColorAtIdx(posAndSize, idxOffset, currentDrawColor);
-              temporary.push([idxOffset, posAndSize]);
-            }
-          }
-
-          // index += Math.max(1, maybeMorePoints);
-          // numPoints = Math.max(numPoints, index);
-          // index %= max_verts;
-
-          renderObjects(gl, points, triangles);
-          //gl.drawArrays(gl.POINTS, 0, numPoints);
-        };
-
-        clearColorBtnEl.onclick = (el) => {
-          clearColor(gl, parseInt(clearColorEl.value));
-          index = numPoints = 0;
-          points = [];
-          triangles = [];
-          gl.clear(gl.COLOR_BUFFER_BIT);
-        };
-        drawColorEl.onchange = (el) => {
-          const idx = parseInt(el.target.value);
-          currentDrawColor = colors[idx][1];
-        };
-      };
-      window.onload = init;
-    </script>
+    <script src="part4.js"></script>
   </body>
 </html>
