@@ -66,8 +66,6 @@
           radius * Math.sin(idx * factor)
         );
       };
-      const clampRange = (input, fromMin, fromMax, toMin, toMax) =>
-        ((input - fromMin) * (toMax - toMin)) / (fromMax - fromMin) + toMin;
 
       document.getElementById("range").oninput = (target) => {
         render_with_n(parseInt(target.srcElement.value));

@@ -45,9 +45,14 @@ let drawContext;
 const clearColor = (drawContext, colorIdx) => {
   const colorVec = colors[colorIdx][1];
   drawContext.clearBackground(colorVec);
+  drawContext.emptyBuffer();
 };
 
+const posAndSizeLength = ([v1x, v1y], [v2x, v2y]) =>
+  Math.sqrt(Math.pow(v2x - v1x, 2) + Math.pow(v2y - v1y, 2));
+
 const circleVerts = 50;
+const circleFactor = (2 * Math.PI) / (circleVerts - 2); // Subtract start and end point
 class DrawContext {
   constructor(gl, maxOfEachType) {
     this.gl = gl;
@@ -61,38 +66,23 @@ class DrawContext {
     this.typeIndexOffsetFactor = {
       [POINT]: 1,
       [TRIANGLE]: 3,
-      [CIRCLE]: circleVerts + 1,
+      [CIRCLE]: circleVerts,
     };
     this.totalVerts = this.typeStartsAt[CIRCLE] + maxOfEachType * circleVerts;
 
-    // Drawing state
-    this.typeCounts = {
-      [POINT]: 0,
-      [TRIANGLE]: 0,
-      [CIRCLE]: 0,
-    };
-    this.pointsCount = 0;
-    this.trianglesCount = 0;
-    this.circlesCount = 0;
-    this.temporary = [];
-
+    // State
     let program = initShaders(gl, "vertex-shader", "fragment-shader");
     this.program = program;
     gl.useProgram(program);
 
     const stride = 6 * Float32Array.BYTES_PER_ELEMENT;
+    this.stride = stride;
 
     let pointBuffer = gl.createBuffer();
     this.pointBuffer = pointBuffer;
     gl.bindBuffer(gl.ARRAY_BUFFER, pointBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      // this is the position, size and color
-      // 2 vecs where first is
-      // [x, y, pointsize] and [r, g, b]
-      this.totalVerts * stride,
-      gl.STATIC_DRAW
-    );
+    // Also initializes more internal state.
+    this.emptyBuffer(gl, stride);
 
     const colorOffset = stride / 2;
 
@@ -107,6 +97,25 @@ class DrawContext {
     this.attributeByteLength = stride;
   }
 
+  emptyBuffer() {
+    // Drawing state
+    this.typeCounts = {
+      [POINT]: 0,
+      [TRIANGLE]: 0,
+      [CIRCLE]: 0,
+    };
+    this.temporary = [];
+
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      // this is the position, size and color
+      // 2 vecs where first is
+      // [x, y, pointsize] and [r, g, b]
+      this.totalVerts * this.stride,
+      this.gl.STREAM_DRAW
+    );
+  }
+
   clearBackground(colorVec) {
     if (colorVec) {
       this.colorVec = colorVec;
@@ -118,6 +127,7 @@ class DrawContext {
   }
 
   pushPointData(idx, pointAndColor) {
+    debugger;
     let offsetIdx = idx * this.attributeByteLength;
     this.gl.bufferSubData(
       this.gl.ARRAY_BUFFER,
@@ -164,8 +174,18 @@ class DrawContext {
     this.gl.drawArrays(
       this.gl.TRIANGLES,
       this.typeStartsAt[TRIANGLE],
-      this.typeCounts[TRIANGLE] * 3
+      this.typeCounts[TRIANGLE] * this.typeIndexOffsetFactor[TRIANGLE]
     );
+
+    const circlesStartAt = this.typeStartsAt[CIRCLE];
+    const circlesOffsetFactor = this.typeIndexOffsetFactor[CIRCLE];
+    for (let i = 0; i < this.typeCounts[CIRCLE]; i++) {
+      this.gl.drawArrays(
+        this.gl.TRIANGLE_FAN,
+        circlesStartAt + i * circlesOffsetFactor,
+        circlesOffsetFactor
+      );
+    }
   }
 
   nextIdxFor = (type) => {
@@ -191,6 +211,29 @@ class DrawContext {
       0,
       ...color,
       ...flatten(twoPreviousPoints),
+    ]);
+  }
+
+  drawCircle([radiusPoint, radiusColor]) {
+    const [[cx, cy], centerColor] = this.popTemporaries(1)[0];
+    const radius = posAndSizeLength([cx, cy], radiusPoint);
+
+    let vertices = Array(circleVerts);
+    for (let i = 0; i < circleVerts; i++) {
+      vertices[i] = [
+        cx + radius * Math.cos(i * circleFactor),
+        cy + radius * Math.sin(i * circleFactor),
+        0,
+        ...radiusColor,
+      ];
+    }
+
+    this.pushPointData(this.nextIdxFor(CIRCLE), [
+      cx,
+      cy,
+      0,
+      ...centerColor,
+      ...flatten(vertices),
     ]);
   }
 }
@@ -221,6 +264,13 @@ const init = () => {
       case TRIANGLE:
         if (drawContext.temporaryLengthEquals(2)) {
           drawContext.drawTriangle(pointAndColor);
+        } else {
+          drawContext.pushTemporary(pointAndColor);
+        }
+        break;
+      case CIRCLE:
+        if (drawContext.temporaryLengthEquals(1)) {
+          drawContext.drawCircle(pointAndColor);
         } else {
           drawContext.pushTemporary(pointAndColor);
         }
