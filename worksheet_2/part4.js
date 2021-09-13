@@ -15,7 +15,6 @@ const modes = {
 };
 
 const canvas = document.getElementById("view");
-const bbox = canvas.getBoundingClientRect();
 const startingPointSize = 10.0;
 
 let gl;
@@ -127,7 +126,6 @@ class DrawContext {
   }
 
   pushPointData(idx, pointAndColor) {
-    debugger;
     let offsetIdx = idx * this.attributeByteLength;
     this.gl.bufferSubData(
       this.gl.ARRAY_BUFFER,
@@ -249,6 +247,7 @@ const init = () => {
   clearColor(drawContext, currentClearColorIdx);
 
   canvas.onclick = (e) => {
+    const bbox = canvas.getBoundingClientRect();
     const posAndSize = vec3(
       (2 * (e.clientX - bbox.left)) / canvas.width - 1,
       (2 * (canvas.height - e.clientY + bbox.top - 1)) / canvas.height - 1,
@@ -283,7 +282,7 @@ const init = () => {
     drawContext.render();
   };
 
-  clearColorBtnEl.onclick = (el) => {
+  clearColorBtnEl.onclick = (_el) => {
     clearColor(drawContext, parseInt(clearColorEl.value));
   };
 
