@@ -56,17 +56,17 @@
     <script src="../common/elementhelper.js"></script>
 
     <script id="vertex-shader" type="x-shader/x-vertex">
-      attribute vec3 a_Point;
+      attribute vec4 a_Point;
       attribute vec3 a_Color;
       varying vec3 v_Color;
       void main() {
         v_Color = a_Color;
         gl_Position.x = a_Point.x;
         gl_Position.y = a_Point.y;
-        gl_Position.z = 0.0;
+        gl_Position.z = a_Point.z;
         gl_Position.w = 1.0;
 
-        gl_PointSize = a_Point.z;
+        gl_PointSize = a_Point.w;
       }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">

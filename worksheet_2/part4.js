@@ -29,7 +29,7 @@ const clearColorEl = document.getElementById("clear-color");
 const clearColorBtnEl = document.getElementById("clear-color-btn");
 drawColorEl.size = colors.length;
 addSelectElements(drawColorEl, colors, 0);
-addSelectElements(clearColorEl, colors, 3);
+addSelectElements(clearColorEl, colors, 8);
 addButtonElements(document.getElementById("mode-btns"), Object.entries(modes));
 const modeBtns = document.querySelectorAll(".draw-mode");
 
@@ -60,6 +60,7 @@ const circleFactor = (2 * Math.PI) / (circleVerts - 2); // Subtract start and en
 class DrawContext {
   constructor(gl, maxOfEachType) {
     this.gl = gl;
+    gl.enable(gl.DEPTH_TEST);
     // Constants
     this.maxOfEachType = maxOfEachType;
     this.typeStartsAt = {
@@ -73,13 +74,19 @@ class DrawContext {
       [CIRCLE]: circleVerts,
     };
     this.totalVerts = this.typeStartsAt[CIRCLE] + maxOfEachType * circleVerts;
+    const zOffset = -1 / this.totalVerts;
+
+    this.zIncrement = () => {
+      this.currentZ += zOffset;
+      return this.currentZ;
+    };
 
     // State
     let program = initShaders(gl, "vertex-shader", "fragment-shader");
     this.program = program;
     gl.useProgram(program);
 
-    const stride = 6 * Float32Array.BYTES_PER_ELEMENT;
+    const stride = 7 * Float32Array.BYTES_PER_ELEMENT;
     this.stride = stride;
 
     let pointBuffer = gl.createBuffer();
@@ -88,10 +95,10 @@ class DrawContext {
     // Also initializes more internal state.
     this.emptyBuffer(gl, stride);
 
-    const colorOffset = stride / 2;
+    const colorOffset = 4 * Float32Array.BYTES_PER_ELEMENT;
 
     let vPoint = gl.getAttribLocation(program, "a_Point");
-    gl.vertexAttribPointer(vPoint, 3, gl.FLOAT, false, stride, 0);
+    gl.vertexAttribPointer(vPoint, 4, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(vPoint);
 
     let vColor = gl.getAttribLocation(program, "a_Color");
@@ -109,12 +116,13 @@ class DrawContext {
       [CIRCLE]: 0,
     };
     this.temporary = [];
+    this.currentZ = 0;
 
     this.gl.bufferData(
       this.gl.ARRAY_BUFFER,
       // this is the position, size and color
       // 2 vecs where first is
-      // [x, y, pointsize] and [r, g, b]
+      // [x, y, z, pointsize] and [r, g, b]
       this.totalVerts * this.stride,
       this.gl.STREAM_DRAW
     );
@@ -203,14 +211,19 @@ class DrawContext {
     this.pushPointData(this.nextIdxFor(POINT), pointAndColor);
   }
 
-  drawTriangle([[x, y, _], color]) {
-    const twoPreviousPoints = this.popTemporaries(2).map(
-      ([[x, y, _], color]) => [x, y, 0, ...color]
-    );
+  drawTriangle([[x, y, z, _], color]) {
+    const twoPreviousPoints = this.popTemporaries(2).map(([[x, y], color]) => [
+      x,
+      y,
+      z,
+      0,
+      ...color,
+    ]);
 
     this.pushPointData(this.nextIdxFor(TRIANGLE), [
       x,
       y,
+      z,
       0,
       ...color,
       ...flatten(twoPreviousPoints),
@@ -218,7 +231,7 @@ class DrawContext {
   }
 
   drawCircle([radiusPoint, radiusColor]) {
-    const [[cx, cy], centerColor] = this.popTemporaries(1)[0];
+    const [[cx, cy, cz], centerColor] = this.popTemporaries(1)[0];
     const radius = posAndSizeLength([cx, cy], radiusPoint);
 
     let vertices = Array(circleVerts);
@@ -226,6 +239,7 @@ class DrawContext {
       vertices[i] = [
         cx + radius * Math.cos(i * circleFactor),
         cy + radius * Math.sin(i * circleFactor),
+        cz,
         0,
         ...radiusColor,
       ];
@@ -234,6 +248,7 @@ class DrawContext {
     this.pushPointData(this.nextIdxFor(CIRCLE), [
       cx,
       cy,
+      cz,
       0,
       ...centerColor,
       ...flatten(vertices),
@@ -253,9 +268,10 @@ const init = () => {
 
   canvas.onclick = (e) => {
     const bbox = canvas.getBoundingClientRect();
-    const posAndSize = vec3(
+    const posAndSize = vec4(
       (2 * (e.clientX - bbox.left)) / canvas.width - 1,
       (2 * (canvas.height - e.clientY + bbox.top - 1)) / canvas.height - 1,
+      drawContext.zIncrement(),
       startingPointSize
     );
 
