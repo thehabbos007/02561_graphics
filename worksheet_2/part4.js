@@ -1,7 +1,12 @@
 const colors = [
+  ["Black", vec3(0, 0, 0)],
   ["Red", vec3(1, 0, 0)],
+  ["Yellow", vec3(1, 1, 0)],
   ["Green", vec3(0, 1, 0)],
   ["Blue", vec3(0, 0, 1)],
+  ["Magenta", vec3(1, 0, 1)],
+  ["Cyan", vec3(0, 1, 1)],
+  ["White", vec3(1, 1, 1)],
   ["Cornflower", vec3(0.3921, 0.5843, 0.9294)],
 ];
 
@@ -36,7 +41,7 @@ modeBtns.forEach((el) => {
 });
 
 let currentDrawColor = colors[0][1];
-let currentClearColorIdx = 3;
+let currentClearColorIdx = 8;
 let currentDrawMode = POINT;
 
 let drawContext;
