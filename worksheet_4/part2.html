@@ -9,7 +9,7 @@
     </style>
   </header>
   <body>
-    <p>Part 1</p>
+    <p>Part 2</p>
     <div style="display: flex; width: 512px; align-items: center">
       <button id="dec" style="flex: auto">- decrease</button>
       <div style="padding: 0 12px; text-align: center">
@@ -28,15 +28,18 @@
     <script id="vertex-shader" type="x-shader/x-vertex">
       attribute vec4 aPosition;
       uniform mat4 uModel;
+      varying vec4 fColor;
 
       void main() {
         gl_Position = uModel * aPosition;
+        fColor = 0.5 * aPosition + 0.5;
       }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
       precision mediump float;
+      varying vec4 fColor;
       void main() {
-        gl_FragColor = vec4(1.0,1.0, 1.0, 1.0);
+        gl_FragColor = fColor;
       }
     </script>
 
@@ -93,6 +96,8 @@
         gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.BACK);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         let vBuffer = gl.createBuffer();
@@ -104,8 +109,8 @@
 
         let mUniform = gl.getUniformLocation(program, "uModel");
 
-        let m = translate(0, 0, 0);
-        let v = lookAt(vec3(0, 0, 6), vec3(0, 0, 0), vec3(0, 1, 0));
+        let m = translate(0, -0.6, 0);
+        let v = lookAt(vec3(2, 1, 1), vec3(0, 0, 0), vec3(0, 1, 0));
         let p = ortho(-2, 2, -2, 2, -10, 10);
         let mvp = mult(p, mult(v, m));
         gl.uniformMatrix4fv(mUniform, false, flatten(mvp));
@@ -127,15 +132,15 @@
 
       const render = (gl, subdivision) => {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
         const pointsArray = tetrahedron(va, vb, vc, vd, subdivision);
         const pointCount = pointsArray.length;
 
         gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArray), gl.STATIC_DRAW);
 
         for (var i = 0; i < pointCount; i += 3) {
-          gl.drawArrays(gl.LINE_LOOP, i, 3);
+          gl.drawArrays(gl.TRIANGLES, i, 3);
         }
+        //gl.drawElements(gl.LINES, numVertices, gl.UNSIGNED_BYTE, 0);
       };
       window.onload = init;
     </script>
