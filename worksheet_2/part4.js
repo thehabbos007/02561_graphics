@@ -135,7 +135,7 @@ class DrawContext {
     } else {
       this.gl.clearColor(...this.colorVec, 1.0);
     }
-    this.gl.clear(gl.COLOR_BUFFER_BIT);
+    this.gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   }
 
   pushPointData(idx, pointAndColor) {

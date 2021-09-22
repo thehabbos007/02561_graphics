@@ -1,0 +1,132 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
+  </header>
+  <body>
+    <p>Part 1</p>
+    <canvas id="view" width="512" height="512"></canvas>
+
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec4 aColor;
+      attribute vec4 aPosition;
+      uniform mat4 uModel;
+      //uniform mat4 uMvpMatrix;
+      varying vec4 vColor;
+
+      void main() {
+        gl_Position = uModel * aPosition;
+        vColor = aColor;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      varying vec4 vColor;
+      void main() {
+        gl_FragColor = vColor;
+      }
+    </script>
+
+    <script>
+      const canvas = document.getElementById("view");
+
+      const init = () => {
+        let gl = WebGLUtils.setupWebGL(canvas);
+
+        if (!gl) {
+          alert("WebGL isn’t available");
+        }
+
+        let program = initShaders(gl, "vertex-shader", "fragment-shader");
+        gl.useProgram(program);
+        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.enable(gl.DEPTH_TEST);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        let vertexColors = [
+          [0.0, 0.0, 0.0, 1.0], // black
+          [1.0, 0.0, 0.0, 1.0], // red
+          [1.0, 1.0, 0.0, 1.0], // yellow
+          [0.0, 1.0, 0.0, 1.0], // green
+          [0.0, 0.0, 1.0, 1.0], // blue
+          [1.0, 0.0, 1.0, 1.0], // magenta
+          [1.0, 1.0, 1.0, 1.0], // white
+          [0.0, 1.0, 1.0, 1.0], // cyan
+        ];
+
+        let vertices = [
+          vec4(-0.5, -0.5, 0.5, 1.0),
+          vec4(-0.5, 0.5, 0.5, 1.0),
+          vec4(0.5, 0.5, 0.5, 1.0),
+          vec4(0.5, -0.5, 0.5, 1.0),
+          vec4(-0.5, -0.5, -0.5, 1.0),
+          vec4(-0.5, 0.5, -0.5, 1.0),
+          vec4(0.5, 0.5, -0.5, 1.0),
+          vec4(0.5, -0.5, -0.5, 1.0),
+        ];
+
+        // prettier-ignore
+        let indices = [ 
+          4, 7,
+          7, 6,
+          6, 5,
+          5, 4,
+          0, 3,
+          3, 2,
+          2, 1,
+          1, 0,
+          4, 0,
+          7, 3,
+          6, 2,
+          5, 1
+        ]
+
+        let numVertices = indices.length;
+
+        let iBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuffer);
+        gl.bufferData(
+          gl.ELEMENT_ARRAY_BUFFER,
+          new Uint8Array(indices),
+          gl.STATIC_DRAW
+        );
+
+        let colors = [...Array(8)].map(() => vertexColors[0]);
+        let cBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, cBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(colors), gl.STATIC_DRAW);
+
+        let aColor = gl.getAttribLocation(program, "aColor");
+        gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(aColor);
+
+        let vBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
+
+        let aPosition = gl.getAttribLocation(program, "aPosition");
+        gl.vertexAttribPointer(aPosition, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(aPosition);
+
+        let mUniform = gl.getUniformLocation(program, "uModel");
+
+        const model = translate(0.5, 0.5, 0.5);
+        const view = lookAt(
+          vec3(0.5, 0.5, 0.5),
+          vec3(-0.5, -0.5, -0.5),
+          vec3(0, 1, 0)
+        );
+        const mv = mult(view, model);
+        gl.uniformMatrix4fv(mUniform, false, flatten(mv));
+
+        gl.drawElements(gl.LINES, numVertices, gl.UNSIGNED_BYTE, 0);
+      };
+      window.onload = init;
+    </script>
+  </body>
+</html>
