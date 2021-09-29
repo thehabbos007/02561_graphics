@@ -28,41 +28,33 @@
     <script id="vertex-shader" type="x-shader/x-vertex">
       attribute vec4 aPosition;
       attribute vec4 aNormal;
-      uniform mat4 uModel;
-      uniform mat4 uView;
+      uniform mat4 uModelView;
       uniform mat4 uProjection;
 
       uniform mat3 normalMatrix;
       uniform vec4 lightPosition;
-      varying vec3 N, L, E;
 
-      void main() {
-        vec3 pos = (uView * aPosition).xyz;
-        L = lightPosition.w == 0.0 ? normalize(-lightPosition.xyz) : normalize(lightPosition.xyz - pos);
-        E = -normalize(pos);
-        N = normalize(normalMatrix * aNormal.xyz);
-
-        gl_Position = uProjection * uView  * aPosition;
-      }
-    </script>
-    <script id="fragment-shader" type="x-shader/x-fragment">
-      precision mediump float;
-
-      uniform vec4 lightAmbient;
-      uniform vec4 lightDiffuse;
-      uniform vec4 lightSpecular;
+      uniform vec4 lightEmission;
 
       uniform vec4 materialAmbient;
       uniform vec4 materialDiffuse;
       uniform vec4 materialSpecular;
       uniform float materialShininess;
 
-      varying vec3 N, L, E;
+      varying vec4 fColor;
 
       void main() {
-        vec4 ambient = lightAmbient * materialAmbient;
-        vec4 diffuseProduct = lightDiffuse * materialDiffuse;
-        vec4 specularProduct = lightSpecular * materialSpecular;
+        vec3 pos = (uModelView * aPosition).xyz;
+        vec3 L = lightPosition.w == 0.0
+               ? normalize(-(uModelView*lightPosition).xyz)
+               : normalize((uModelView*lightPosition).xyz - pos);
+
+        vec3 E = -normalize(pos);
+        vec3 N = normalize(normalMatrix * aNormal.xyz);
+
+        vec4 ambient = lightEmission * materialAmbient;
+        vec4 diffuseProduct = lightEmission * materialDiffuse;
+        vec4 specularProduct = lightEmission * materialSpecular;
 
         vec3 H = normalize(L + E);
 
@@ -74,8 +66,18 @@
 
         if(dot(L, N) < 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
 
-        gl_FragColor = ambient + diffuse + specular;
-        gl_FragColor.a = 1.0;
+        fColor = ambient + diffuse + specular;
+        fColor.a = 1.0;
+
+        gl_Position = uProjection * uModelView  * aPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      varying vec4 fColor;
+
+      void main() {
+        gl_FragColor = fColor;
       }
     </script>
 
@@ -98,9 +100,7 @@
       const vd = vec4(0.816497, -0.471405, 0.333333, 1);
 
       const lightPosition = vec4(0.0, 0.0, 1.0, 0.0);
-      const lightAmbient = vec4(1.0, 1.0, 1.0, 1.0);
-      const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
-      const lightSpecular = vec4(1.0, 1.0, 1.0, 1.0);
+      const lightEmission = vec4(1.0, 1.0, 1.0, 1.0);
 
       const materialAmbient = vec4(0.2, 0.0, 0.0, 1.0);
       const materialDiffuse = vec4(0.7, 0.0, 0.2, 1.0);
@@ -162,8 +162,7 @@
         gl.enableVertexAttribArray(aNormal);
         gl.vertexAttribPointer(aNormal, 4, gl.FLOAT, false, 0, 0);
 
-        gl.mUniform = gl.getUniformLocation(program, "uModel");
-        gl.vUniform = gl.getUniformLocation(program, "uView");
+        gl.mvUniform = gl.getUniformLocation(program, "uModelView");
         gl.pUniform = gl.getUniformLocation(program, "uProjection");
         gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
 
@@ -172,12 +171,8 @@
           flatten(lightPosition)
         );
 
-        gl.ulightAmbient = gl.getUniformLocation(program, "lightAmbient");
-        gl.uniform4fv(gl.ulightAmbient, flatten(lightAmbient));
-        gl.ulightDiffuse = gl.getUniformLocation(program, "lightDiffuse");
-        gl.uniform4fv(gl.ulightDiffuse, flatten(lightDiffuse));
-        gl.ulightSpecular = gl.getUniformLocation(program, "lightSpecular");
-        gl.uniform4fv(gl.ulightSpecular, flatten(lightSpecular));
+        gl.ulightEmission = gl.getUniformLocation(program, "lightEmission");
+        gl.uniform4fv(gl.ulightEmission, flatten(lightEmission));
         gl.umaterialAmbient = gl.getUniformLocation(program, "materialAmbient");
         gl.uniform4fv(gl.umaterialAmbient, flatten(materialAmbient));
         gl.umaterialDiffuse = gl.getUniformLocation(program, "materialDiffuse");
@@ -224,31 +219,32 @@
 
       const render = () => {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        const m = mat4();
-        const v = mult(
-          lookAt(vec3(0, 0, 3), vec3(0, 0, 0), vec3(0, 1, 0)),
-          rotate(rotation, [0, 1, 0])
+        const eye = vec3(
+          Math.cos(rotation) * 5.0,
+          0.0,
+          Math.sin(rotation) * 5.0
         );
-        // Unit sphere is smol, so far of 5 is sufficient distance from the view
-        const p = perspective(45, 1, 0.1, 5);
-        gl.uniformMatrix4fv(gl.mUniform, false, flatten(m));
-        gl.uniformMatrix4fv(gl.vUniform, false, flatten(v));
+
+        const mv = lookAt(eye, vec3(0, 0, 0), vec3(0, 1, 0));
+        const p = perspective(45, 1, 0.1, 10);
+        gl.uniformMatrix4fv(gl.mvUniform, false, flatten(mv));
         gl.uniformMatrix4fv(gl.pUniform, false, flatten(p));
 
-        // prettier-ignore
-        const normalMatrix = [
-            vec3(v[0][0], v[0][1], v[0][2]),
-            vec3(v[1][0], v[1][1], v[1][2]),
-            vec3(v[2][0], v[2][1], v[2][2])
-          ];
+        const N = inverse(transpose(mv));
+        const normalMatrix = mat3();
+        for (var i = 0; i < 3; i++)
+          for (var j = 0; j < 3; j++) normalMatrix[i][j] = N[i][j];
+
         gl.uniformMatrix3fv(gl.nmUniform, false, flatten(normalMatrix));
 
-        gl.drawArrays(gl.TRIANGLES, 0, pointsCount);
+        //gl.drawArrays(gl.TRIANGLES, 0, pointsCount);
+        for (var i = 0; i < pointsCount; i += 3) {
+          gl.drawArrays(gl.TRIANGLES, i, 3);
+        }
       };
 
       const tick = () => {
-        rotation += 0.15;
+        rotation += 0.01;
         render();
         requestAnimFrame(tick);
       };
