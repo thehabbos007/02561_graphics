@@ -106,6 +106,23 @@
       uniform mat3 normalMatrix;
       uniform vec4 lightPosition;
 
+      varying vec3 L, E, N, H;
+
+      void main() {
+        vec3 pos = (uModelView * aPosition).xyz;
+
+        L = lightPosition.w == 0.0
+               ? normalize(-(uModelView*lightPosition).xyz)
+               : normalize((uModelView*lightPosition).xyz - pos);
+        E = -normalize(pos);
+        N = normalize(normalMatrix * aNormal.xyz);
+        H = normalize(L + E);
+
+        gl_Position = uProjection * uModelView  * aPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
       uniform vec4 lightEmission;
 
       uniform vec4 materialAmbient;
@@ -113,22 +130,12 @@
       uniform vec4 materialSpecular;
       uniform float materialShininess;
 
-      varying vec4 fColor;
+      varying vec3 L, E, N, H;
 
       void main() {
-        vec3 pos = (uModelView * aPosition).xyz;
-        vec3 L = lightPosition.w == 0.0
-               ? normalize(-(uModelView*lightPosition).xyz)
-               : normalize((uModelView*lightPosition).xyz - pos);
-
-        vec3 E = -normalize(pos);
-        vec3 N = normalize(normalMatrix * aNormal.xyz);
-
         vec4 ambient = lightEmission * materialAmbient;
         vec4 diffuseProduct = lightEmission * materialDiffuse;
         vec4 specularProduct = lightEmission * materialSpecular;
-
-        vec3 H = normalize(L + E);
 
         float Kd = max(dot(L, N), 0.0);
         vec4 diffuse = Kd*diffuseProduct;
@@ -138,18 +145,8 @@
 
         if(dot(L, N) < 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
 
-        fColor = ambient + diffuse + specular;
-        fColor.a = 1.0;
-
-        gl_Position = uProjection * uModelView  * aPosition;
-      }
-    </script>
-    <script id="fragment-shader" type="x-shader/x-fragment">
-      precision mediump float;
-      varying vec4 fColor;
-
-      void main() {
-        gl_FragColor = fColor;
+        gl_FragColor = ambient + diffuse + specular;
+        gl_FragColor.a = 1.0;
       }
     </script>
 
