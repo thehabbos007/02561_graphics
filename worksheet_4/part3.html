@@ -33,49 +33,35 @@
       uniform mat4 uProjection;
 
       uniform mat3 normalMatrix;
+
       uniform vec4 lightPosition;
-      varying vec3 N, L, E;
+
+      uniform vec4 lightDiffuse;
+      uniform vec4 materialDiffuse;
+
+      varying vec4 fColor;
 
       void main() {
         vec3 pos = (uView * aPosition).xyz;
-        L = lightPosition.w == 0.0 ? normalize(-lightPosition.xyz) : normalize(lightPosition.xyz - pos);
-        E = -normalize(pos);
-        N = normalize(normalMatrix * aNormal.xyz);
+        vec3 L = lightPosition.w == 0.0 ? normalize(-lightPosition.xyz) : normalize(lightPosition.xyz - aPosition.xyz);
 
-        gl_Position = uProjection * uView  * aPosition;
+        // Already normalized
+        vec3 N = aNormal.xyz;
+
+        float Kd = max(dot(L, N), 0.0);
+        vec4 diffuse = Kd * (lightDiffuse * materialDiffuse);
+
+        gl_Position = uProjection * uView * aPosition;
+        fColor.xyz = diffuse.xyz;
+        fColor.a = 1.0;
       }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
       precision mediump float;
-
-      uniform vec4 lightAmbient;
-      uniform vec4 lightDiffuse;
-      uniform vec4 lightSpecular;
-
-      uniform vec4 materialAmbient;
-      uniform vec4 materialDiffuse;
-      uniform vec4 materialSpecular;
-      uniform float materialShininess;
-
-      varying vec3 N, L, E;
+      varying vec4 fColor;
 
       void main() {
-        vec4 ambient = lightAmbient * materialAmbient;
-        vec4 diffuseProduct = lightDiffuse * materialDiffuse;
-        vec4 specularProduct = lightSpecular * materialSpecular;
-
-        vec3 H = normalize(L + E);
-
-        float Kd = max(dot(L, N), 0.0);
-        vec4 diffuse = Kd*diffuseProduct;
-
-        float Ks = pow(max(dot(N, H), 0.0), materialShininess);
-        vec4 specular = Ks * specularProduct;
-
-        if(dot(L, N) < 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
-
-        gl_FragColor = ambient + diffuse + specular;
-        gl_FragColor.a = 1.0;
+        gl_FragColor = fColor;
       }
     </script>
 
@@ -98,14 +84,8 @@
       const vd = vec4(0.816497, -0.471405, 0.333333, 1);
 
       const lightPosition = vec4(0.0, 0.0, 1.0, 0.0);
-      const lightAmbient = vec4(1.0, 1.0, 1.0, 1.0);
       const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
-      const lightSpecular = vec4(1.0, 1.0, 1.0, 1.0);
-
-      const materialAmbient = vec4(0.2, 0.0, 0.0, 1.0);
       const materialDiffuse = vec4(0.7, 0.0, 0.2, 1.0);
-      const materialSpecular = vec4(0.5, 0.0, 0.1, 1.0);
-      const materialShininess = 100.0;
 
       const divideTriangle = (a, b, c, count) => {
         if (count > 0) {
@@ -172,26 +152,10 @@
           flatten(lightPosition)
         );
 
-        gl.ulightAmbient = gl.getUniformLocation(program, "lightAmbient");
-        gl.uniform4fv(gl.ulightAmbient, flatten(lightAmbient));
         gl.ulightDiffuse = gl.getUniformLocation(program, "lightDiffuse");
         gl.uniform4fv(gl.ulightDiffuse, flatten(lightDiffuse));
-        gl.ulightSpecular = gl.getUniformLocation(program, "lightSpecular");
-        gl.uniform4fv(gl.ulightSpecular, flatten(lightSpecular));
-        gl.umaterialAmbient = gl.getUniformLocation(program, "materialAmbient");
-        gl.uniform4fv(gl.umaterialAmbient, flatten(materialAmbient));
         gl.umaterialDiffuse = gl.getUniformLocation(program, "materialDiffuse");
         gl.uniform4fv(gl.umaterialDiffuse, flatten(materialDiffuse));
-        gl.umaterialSpecular = gl.getUniformLocation(
-          program,
-          "materialSpecular"
-        );
-        gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
-        gl.umaterialShininess = gl.getUniformLocation(
-          program,
-          "materialShininess"
-        );
-        gl.uniform1f(gl.umaterialShininess, materialShininess);
 
         insertSphereData();
 
