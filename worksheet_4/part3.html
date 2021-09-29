@@ -31,22 +31,51 @@
       uniform mat4 uModel;
       uniform mat4 uView;
       uniform mat4 uProjection;
-      varying vec4 fColor;
 
-      uniform float Ka;   // Ambient reflection coefficient
-      uniform float Kd;   // Diffuse reflection coefficient
+      uniform mat3 normalMatrix;
+      uniform vec4 lightPosition;
+      varying vec3 N, L, E;
 
       void main() {
-        gl_Position = uProjection * uView * uModel * aPosition;
-        fColor.xyz = 0.5 * aNormal.xyz + 0.5;
-        fColor.w = 1.0;
+        vec3 pos = (uView * aPosition).xyz;
+        L = lightPosition.w == 0.0 ? normalize(-lightPosition.xyz) : normalize(lightPosition.xyz - pos);
+        E = -normalize(pos);
+        N = normalize(normalMatrix * aNormal.xyz);
+
+        gl_Position = uProjection * uView  * aPosition;
       }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
       precision mediump float;
-      varying vec4 fColor;
+
+      uniform vec4 lightAmbient;
+      uniform vec4 lightDiffuse;
+      uniform vec4 lightSpecular;
+
+      uniform vec4 materialAmbient;
+      uniform vec4 materialDiffuse;
+      uniform vec4 materialSpecular;
+      uniform float materialShininess;
+
+      varying vec3 N, L, E;
+
       void main() {
-        gl_FragColor = fColor;
+        vec4 ambient = lightAmbient * materialAmbient;
+        vec4 diffuseProduct = lightDiffuse * materialDiffuse;
+        vec4 specularProduct = lightSpecular * materialSpecular;
+
+        vec3 H = normalize(L + E);
+
+        float Kd = max(dot(L, N), 0.0);
+        vec4 diffuse = Kd*diffuseProduct;
+
+        float Ks = pow(max(dot(N, H), 0.0), materialShininess);
+        vec4 specular = Ks * specularProduct;
+
+        if(dot(L, N) < 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
+
+        gl_FragColor = ambient + diffuse + specular;
+        gl_FragColor.a = 1.0;
       }
     </script>
 
@@ -57,6 +86,8 @@
       const dec = document.getElementById("dec");
 
       let gl;
+      let rotation = 0;
+      let pointsCount = 0;
       let subdivision = 3;
       const refreshCounter = () => (counter.textContent = subdivision);
       refreshCounter();
@@ -65,6 +96,16 @@
       const vb = vec4(0.0, 0.942809, 0.333333, 1);
       const vc = vec4(-0.816497, -0.471405, 0.333333, 1);
       const vd = vec4(0.816497, -0.471405, 0.333333, 1);
+
+      const lightPosition = vec4(0.0, 0.0, 1.0, 0.0);
+      const lightAmbient = vec4(1.0, 1.0, 1.0, 1.0);
+      const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
+      const lightSpecular = vec4(1.0, 1.0, 1.0, 1.0);
+
+      const materialAmbient = vec4(0.2, 0.0, 0.0, 1.0);
+      const materialDiffuse = vec4(0.7, 0.0, 0.2, 1.0);
+      const materialSpecular = vec4(0.5, 0.0, 0.1, 1.0);
+      const materialShininess = 100.0;
 
       const divideTriangle = (a, b, c, count) => {
         if (count > 0) {
@@ -121,48 +162,95 @@
         gl.enableVertexAttribArray(aNormal);
         gl.vertexAttribPointer(aNormal, 4, gl.FLOAT, false, 0, 0);
 
-        const mUniform = gl.getUniformLocation(program, "uModel");
-        const vUniform = gl.getUniformLocation(program, "uView");
-        const pUniform = gl.getUniformLocation(program, "uProjection");
+        gl.mUniform = gl.getUniformLocation(program, "uModel");
+        gl.vUniform = gl.getUniformLocation(program, "uView");
+        gl.pUniform = gl.getUniformLocation(program, "uProjection");
+        gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
 
-        const m = translate(0, -0.6, 0);
-        const v = lookAt(vec3(0, 5, -5), vec3(0, 0, 0), vec3(0, 1, 0));
-        const p = ortho(-2, 2, -2, 2, -10, 10);
-        gl.uniformMatrix4fv(mUniform, false, flatten(m));
-        gl.uniformMatrix4fv(vUniform, false, flatten(v));
-        gl.uniformMatrix4fv(pUniform, false, flatten(p));
+        gl.uniform4fv(
+          gl.getUniformLocation(program, "lightPosition"),
+          flatten(lightPosition)
+        );
 
-        render(gl, subdivision);
+        gl.ulightAmbient = gl.getUniformLocation(program, "lightAmbient");
+        gl.uniform4fv(gl.ulightAmbient, flatten(lightAmbient));
+        gl.ulightDiffuse = gl.getUniformLocation(program, "lightDiffuse");
+        gl.uniform4fv(gl.ulightDiffuse, flatten(lightDiffuse));
+        gl.ulightSpecular = gl.getUniformLocation(program, "lightSpecular");
+        gl.uniform4fv(gl.ulightSpecular, flatten(lightSpecular));
+        gl.umaterialAmbient = gl.getUniformLocation(program, "materialAmbient");
+        gl.uniform4fv(gl.umaterialAmbient, flatten(materialAmbient));
+        gl.umaterialDiffuse = gl.getUniformLocation(program, "materialDiffuse");
+        gl.uniform4fv(gl.umaterialDiffuse, flatten(materialDiffuse));
+        gl.umaterialSpecular = gl.getUniformLocation(
+          program,
+          "materialSpecular"
+        );
+        gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
+        gl.umaterialShininess = gl.getUniformLocation(
+          program,
+          "materialShininess"
+        );
+        gl.uniform1f(gl.umaterialShininess, materialShininess);
+
+        insertSphereData();
+
+        tick();
       };
 
       dec.onclick = () => {
         subdivision = Math.max(0, subdivision - 1);
         refreshCounter();
-        render(gl, subdivision);
+        insertSphereData();
       };
 
       inc.onclick = () => {
         subdivision++;
         refreshCounter();
-        render(gl, subdivision);
+        insertSphereData();
       };
 
-      const render = (gl, subdivision) => {
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      const insertSphereData = () => {
         const pointsArray = tetrahedron(va, vb, vc, vd, subdivision);
-        const normArray = pointsArray.map((x) => vec4(...vec3(x), 0));
-        const pointCount = pointsArray.length;
+        pointsCount = pointsArray.length;
 
         gl.bindBuffer(gl.ARRAY_BUFFER, gl.vBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArray), gl.STATIC_DRAW);
 
+        // We are drawing a unit sphere, so all the points are technically already normalized
         gl.bindBuffer(gl.ARRAY_BUFFER, gl.nBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, flatten(normArray), gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(pointsArray), gl.STATIC_DRAW);
+      };
 
-        // for (var i = 0; i < pointCount; i += 3) {
-        //   gl.drawArrays(gl.TRIANGLES, i, 3);
-        // }
-        gl.drawArrays(gl.TRIANGLES, 0, pointCount);
+      const render = () => {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        const m = mat4();
+        const v = mult(
+          lookAt(vec3(0, 0, 3), vec3(0, 0, 0), vec3(0, 1, 0)),
+          rotate(rotation, [0, 1, 0])
+        );
+        // Unit sphere is smol, so far of 5 is sufficient distance from the view
+        const p = perspective(45, 1, 0.1, 5);
+        gl.uniformMatrix4fv(gl.mUniform, false, flatten(m));
+        gl.uniformMatrix4fv(gl.vUniform, false, flatten(v));
+        gl.uniformMatrix4fv(gl.pUniform, false, flatten(p));
+
+        // prettier-ignore
+        const normalMatrix = [
+            vec3(v[0][0], v[0][1], v[0][2]),
+            vec3(v[1][0], v[1][1], v[1][2]),
+            vec3(v[2][0], v[2][1], v[2][2])
+          ];
+        gl.uniformMatrix3fv(gl.nmUniform, false, flatten(normalMatrix));
+
+        gl.drawArrays(gl.TRIANGLES, 0, pointsCount);
+      };
+
+      const tick = () => {
+        rotation += 0.15;
+        render();
+        requestAnimFrame(tick);
       };
       window.onload = init;
     </script>
