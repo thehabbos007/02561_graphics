@@ -32,6 +32,7 @@
       uniform mat4 uView;
       uniform mat4 uProjection;
 
+      // inverse(transpose(mv))
       uniform mat3 normalMatrix;
 
       uniform vec4 lightPosition;
@@ -83,7 +84,7 @@
       const vc = vec4(-0.816497, -0.471405, 0.333333, 1);
       const vd = vec4(0.816497, -0.471405, 0.333333, 1);
 
-      const lightPosition = vec4(0.0, 0.0, 1.0, 0.0);
+      const lightPosition = vec4(0.0, 0.0, -1.0, 0.0);
       const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
       const materialDiffuse = vec4(0.7, 0.0, 0.2, 1.0);
 
