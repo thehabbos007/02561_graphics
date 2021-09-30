@@ -26,3 +26,11 @@ const addButtonElements = (el, items) => {
     addButtonElement(el, item[0], item[1], idx);
   });
 };
+
+const initSliderWithValue = (el, sliderCallback) => {
+  const value = parseFloat(el.value);
+  sliderCallback(value);
+  el.oninput = (e) => {
+    sliderCallback(parseFloat(e.target.value));
+  };
+};
