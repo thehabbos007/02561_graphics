@@ -27,10 +27,16 @@ const addButtonElements = (el, items) => {
   });
 };
 
+const setSliderValueTextAndCallback = (el, value, sliderCallback) => {
+  el.parentElement.lastElementChild.innerHTML = `&nbsp;&nbsp;${value}`;
+  sliderCallback(value);
+};
+
 const initSliderWithValue = (el, sliderCallback) => {
   const value = parseFloat(el.value);
-  sliderCallback(value);
+  setSliderValueTextAndCallback(el, value, sliderCallback);
   el.oninput = (e) => {
-    sliderCallback(parseFloat(e.target.value));
+    const value = parseFloat(e.target.value);
+    setSliderValueTextAndCallback(el, value, sliderCallback);
   };
 };
