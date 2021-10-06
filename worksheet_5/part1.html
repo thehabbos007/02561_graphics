@@ -1,0 +1,248 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
+    <style>
+      button {
+        margin: 0;
+      }
+    </style>
+  </header>
+
+  <body>
+    <p>Part 1</p>
+    <div style="display: flex; width: 512px; align-items: center">
+      <button id="dec" style="flex: auto">- decrease</button>
+      <div style="padding: 0 12px; text-align: center">
+        subdivisions:
+        <br />
+        <span id="counter"></span>
+      </div>
+      <button id="inc" style="flex: auto">+ increase</button>
+    </div>
+    <canvas id="view" width="512" height="512"></canvas>
+
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
+    <script src="../common/OBJParser.js"></script>
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec4 aPosition;
+      attribute vec4 aNormal;
+      attribute vec4 aColor;
+      uniform mat4 uModel;
+      varying vec4 fNormal, fColor;
+
+      uniform vec4 lightPosition;
+
+      uniform vec4 lightDiffuse;
+      uniform vec4 materialDiffuse;
+
+
+      void main() {
+        fNormal = aNormal;
+        vec3 pos = (aPosition).xyz;
+        vec3 L = lightPosition.w == 0.0 ? normalize(-lightPosition.xyz) : normalize(lightPosition.xyz - aPosition.xyz);
+
+        // Already normalized
+        vec3 N = aNormal.xyz;
+
+        float lambertian = max(dot(L, N), 0.0);
+        vec4 diffuse = lambertian * (lightDiffuse * materialDiffuse);
+        fColor.xyz = diffuse.xyz;
+        fColor.a = 1.0;
+
+        gl_Position = aPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      varying vec4 fColor;
+      void main() {
+        gl_FragColor = fColor;
+      }
+    </script>
+
+    <script>
+      const canvas = document.getElementById("view");
+
+      let gl, model;
+      const lightPosition = vec4(0.0, 0.0, -2.0, 0.0);
+      const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
+      const materialDiffuse = vec4(0.7, 0.0, 0.2, 1.0);
+
+
+      const initObject = (gl, objLocation, scale) => {
+        gl.program.aPosition = gl.getAttribLocation(gl.program, "aPosition");
+        gl.program.aNormal = gl.getAttribLocation(gl.program, "aNormal");
+        gl.program.aColor = gl.getAttribLocation(gl.program, "aColor");
+        model = initVertexBuffers(gl);
+        readOBJFile(objLocation, gl, model, scale);
+
+        return model;
+      };
+
+      const init = () => {
+        gl = WebGLUtils.setupWebGL(canvas);
+
+        if (!gl) {
+          alert("WebGL isn’t available");
+        }
+
+        let program = initShaders(gl, "vertex-shader", "fragment-shader");
+        gl.useProgram(program);
+        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.enable(gl.DEPTH_TEST);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.BACK);
+        gl.getExtension('OES_element_index_uint');
+        gl.program = program;
+
+        gl.uniform4fv(
+          gl.getUniformLocation(program, "lightPosition"),
+          flatten(lightPosition)
+        );
+
+        gl.ulightDiffuse = gl.getUniformLocation(program, "lightDiffuse");
+        gl.uniform4fv(gl.ulightDiffuse, flatten(lightDiffuse));
+        gl.umaterialDiffuse = gl.getUniformLocation(program, "materialDiffuse");
+        gl.uniform4fv(gl.umaterialDiffuse, flatten(materialDiffuse));
+
+
+        initObject(
+          gl,
+          "http://www.student.dtu.dk/~s185126/02561/remister.obj",
+          0.1
+        );
+
+        tick();
+      };
+
+      const render = () => {
+        if (!g_drawingInfo && g_objDoc && g_objDoc.isMTLComplete()) {
+          g_drawingInfo = onReadComplete(gl, model, g_objDoc);
+        }
+        if (!g_drawingInfo) return;
+
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        gl.drawElements(
+          gl.TRIANGLES,
+          g_drawingInfo.indices.length,
+          gl.UNSIGNED_INT,
+          0
+        );
+      };
+
+      const tick = () => {
+        render();
+        requestAnimFrame(tick);
+      };
+
+      function createEmptyArrayBuffer(gl, a_attribute, num, type) {
+        var buffer = gl.createBuffer();
+        if (!buffer) {
+          console.log("Failed to create the buffer object");
+          return null;
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.vertexAttribPointer(a_attribute, num, type, false, 0, 0);
+        gl.enableVertexAttribArray(a_attribute);
+
+        return buffer;
+      }
+
+      function initVertexBuffers(gl) {
+        let program = gl.program;
+        var o = new Object();
+        o.vertexBuffer = createEmptyArrayBuffer(
+          gl,
+          program.aPosition,
+          3,
+          gl.FLOAT
+        );
+        o.normalBuffer = createEmptyArrayBuffer(
+          gl,
+          program.aNormal,
+          3,
+          gl.FLOAT
+        );
+        o.colorBuffer = createEmptyArrayBuffer(gl, program.aColor, 4, gl.FLOAT);
+        o.indexBuffer = gl.createBuffer();
+        if (
+          !o.vertexBuffer ||
+          !o.normalBuffer ||
+          !o.colorBuffer ||
+          !o.indexBuffer
+        ) {
+          return null;
+        }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        return o;
+      }
+
+      function readOBJFile(fileName, gl, model, scale, reverse) {
+        var request = new XMLHttpRequest();
+
+        request.responseType = "text";
+        request.onreadystatechange = function () {
+          if (request.readyState === 4 && request.status !== 404) {
+            onReadOBJFile(
+              request.responseText,
+              fileName,
+              gl,
+              model,
+              scale,
+              reverse
+            );
+          }
+        };
+        request.open("GET", fileName, true); // Create a request to acquire the file
+        request.send(); // Send the request
+      }
+
+      var g_objDoc = null;
+      var g_drawingInfo = null;
+
+      function onReadOBJFile(fileString, fileName, gl, o, scale, reverse) {
+        var objDoc = new OBJDoc(fileName);
+        var result = objDoc.parse(fileString, scale, reverse);
+        if (!result) {
+          g_objDoc = null;
+          g_drawingInfo = null;
+          console.log("OBJ file parsing error.");
+          return;
+        }
+        g_objDoc = objDoc;
+      }
+
+      function onReadComplete(gl, model, objDoc) {
+        var drawingInfo = objDoc.getDrawingInfo();
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.vertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.vertices, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.normalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.normals, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.colorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.colors, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indexBuffer);
+        gl.bufferData(
+          gl.ELEMENT_ARRAY_BUFFER,
+          drawingInfo.indices,
+          gl.STATIC_DRAW
+        );
+
+        return drawingInfo;
+      }
+      window.onload = init;
+    </script>
+  </body>
+</html>
