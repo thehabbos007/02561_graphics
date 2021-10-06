@@ -38,7 +38,7 @@
         type="range"
         min="0"
         max="1"
-        value="0.8"
+        value="0.7"
         step="0.1"
         class="slider"
         id="Ka"
@@ -50,7 +50,7 @@
         type="range"
         min="0"
         max="1"
-        value="0.7"
+        value="0.5"
         step="0.1"
         class="slider"
         id="Kd"
@@ -62,7 +62,7 @@
         type="range"
         min="0"
         max="1"
-        value="0.6"
+        value="0.1"
         step="0.1"
         class="slider"
         id="Ks"
@@ -74,7 +74,7 @@
         type="range"
         min="0"
         max="100"
-        value="30"
+        value="5"
         class="slider"
         id="alpha"
       /><span class="current"></span>
@@ -85,7 +85,7 @@
         type="range"
         min="0"
         max="2"
-        value="1.0"
+        value="1.6"
         step="0.1"
         class="slider"
         id="Le"
@@ -161,7 +161,7 @@
         float angleOfSpecular = pow(max(dot(R, N), 0.0), materialShininess);
         vec4 specular = Ks * angleOfSpecular * specularProduct;
 
-        if(lambertian <= 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
+        if(lambertian == 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
 
         gl_FragColor = ambient + diffuse + specular;
       }
