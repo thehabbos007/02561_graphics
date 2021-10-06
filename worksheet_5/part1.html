@@ -3,64 +3,149 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="../milligram.css" />
     <style>
-      button {
+      label {
+        display: inline-block;
+        width: 4rem;
+        text-align: right;
+        margin: 0 0.5rem 0 0;
+      }
+      input {
+        padding: 0;
         margin: 0;
+      }
+      .slider-input-group {
+        display: flex;
       }
     </style>
   </header>
 
   <body>
     <p>Part 1</p>
-    <div style="display: flex; width: 512px; align-items: center">
-      <button id="dec" style="flex: auto">- decrease</button>
-      <div style="padding: 0 12px; text-align: center">
-        subdivisions:
-        <br />
-        <span id="counter"></span>
-      </div>
-      <button id="inc" style="flex: auto">+ increase</button>
+    <div class="slider-input-group">
+      <label for="Ka">Ka</label>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        value="0.7"
+        step="0.1"
+        class="slider"
+        id="Ka"
+      /><span class="current"></span>
+    </div>
+    <div class="slider-input-group">
+      <label for="Kd">Kd</label>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        value="0.5"
+        step="0.1"
+        class="slider"
+        id="Kd"
+      /><span class="current"></span>
+    </div>
+    <div class="slider-input-group">
+      <label for="Ks">Ks</label>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        value="0.1"
+        step="0.1"
+        class="slider"
+        id="Ks"
+      /><span class="current"></span>
+    </div>
+    <div class="slider-input-group">
+      <label for="alpha">alpha</label>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        value="5"
+        class="slider"
+        id="alpha"
+      /><span class="current"></span>
     </div>
     <canvas id="view" width="512" height="512"></canvas>
 
     <script src="../common/webgl-utils.js"></script>
     <script src="../common/initShaders.js"></script>
     <script src="../common/MV.js"></script>
+    <script src="../common/elementhelper.js"></script>
     <script src="../common/OBJParser.js"></script>
 
     <script id="vertex-shader" type="x-shader/x-vertex">
       attribute vec4 aPosition;
       attribute vec4 aNormal;
       attribute vec4 aColor;
-      uniform mat4 uModel;
-      varying vec4 fNormal, fColor;
 
-      uniform vec4 lightPosition;
+      uniform mat4 uModelView;
+      uniform mat4 uProjection;
+      varying mat4 vModelView;
 
-      uniform vec4 lightDiffuse;
-      uniform vec4 materialDiffuse;
-
+      varying vec4 vPosition, vNormal, vColor;
+      //varying mat4 vModelView;
 
       void main() {
-        fNormal = aNormal;
-        vec3 pos = (aPosition).xyz;
-        vec3 L = lightPosition.w == 0.0 ? normalize(-lightPosition.xyz) : normalize(lightPosition.xyz - aPosition.xyz);
+        vPosition = aPosition;
+        vNormal = aNormal;
+        vColor = aColor;
+        vModelView = uModelView;
 
-        // Already normalized
-        vec3 N = aNormal.xyz;
-
-        float lambertian = max(dot(L, N), 0.0);
-        vec4 diffuse = lambertian * (lightDiffuse * materialDiffuse);
-        fColor.xyz = diffuse.xyz;
-        fColor.a = 1.0;
-
-        gl_Position = aPosition;
+        gl_Position = uProjection * uModelView  * aPosition;
       }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
       precision mediump float;
-      varying vec4 fColor;
+      uniform mat3 normalMatrix;
+      uniform vec4 lightPosition;
+
+      uniform vec4 materialAmbient;
+      uniform vec4 materialDiffuse;
+      uniform vec4 materialSpecular;
+
+      uniform float Ka;
+      uniform float Kd;
+      uniform float Ks;
+      uniform float materialShininess;
+
+
+      varying vec4 vPosition;
+      varying vec4 vNormal;
+      varying vec4 vColor;
+      varying mat4 vModelView;
+
       void main() {
-        gl_FragColor = fColor;
+        float Le = 1.6;
+        vec4 lightEmission = vec4(Le);
+
+        vec3 pos = vPosition.xyz;
+        vec3 L = lightPosition.w == 0.0
+               ? normalize(-(lightPosition).xyz)
+               : normalize((lightPosition).xyz - pos);
+
+        vec3 E = -normalize(pos);
+        vec3 N = normalize(normalMatrix * vNormal.xyz);
+        vec3 R = reflect(-L, N);
+
+        // Ambient term
+        vec4 ambient = Ka * lightEmission * materialAmbient;
+
+        // Diffuse term
+        vec4 diffuseProduct = lightEmission * materialDiffuse;
+        float lambertian = max(dot(L, N), 0.0);
+        vec4 diffuse = Kd * lambertian * diffuseProduct;
+
+        // Specular term
+        vec4 specularProduct = lightEmission * materialSpecular;
+        float angleOfSpecular = pow(max(dot(R, N), 0.0), materialShininess);
+        vec4 specular = Ks * angleOfSpecular * specularProduct;
+
+        if(lambertian <= 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
+
+        gl_FragColor = ambient + diffuse + specular;
       }
     </script>
 
@@ -68,10 +153,7 @@
       const canvas = document.getElementById("view");
 
       let gl, model;
-      const lightPosition = vec4(0.0, 0.0, -2.0, 0.0);
-      const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
-      const materialDiffuse = vec4(0.7, 0.0, 0.2, 1.0);
-
+      let rotation = 0;
 
       const initObject = (gl, objLocation, scale) => {
         gl.program.aPosition = gl.getAttribLocation(gl.program, "aPosition");
@@ -98,24 +180,66 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.enable(gl.CULL_FACE);
         gl.cullFace(gl.BACK);
-        gl.getExtension('OES_element_index_uint');
+        gl.getExtension("OES_element_index_uint");
         gl.program = program;
+
+        gl.mvUniform = gl.getUniformLocation(program, "uModelView");
+        gl.pUniform = gl.getUniformLocation(program, "uProjection");
+        gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
+
+        const lightPosition = vec4(1, 0, -1, 0);
+
+        const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
+        const materialAmbient = vec4(0.2, 0.0, 0.0, 1.0);
+        const materialDiffuse = vec4(0.5, 0.0, 0.17, 1.0);
+        const materialSpecular = vec4(0.4, 0.4, 0.4, 1.0);
+
+        const Ka = 1.6;
+        const Kd = 0.5;
+        const Ks = 0.1;
+        const shine = 5;
 
         gl.uniform4fv(
           gl.getUniformLocation(program, "lightPosition"),
           flatten(lightPosition)
         );
-
         gl.ulightDiffuse = gl.getUniformLocation(program, "lightDiffuse");
         gl.uniform4fv(gl.ulightDiffuse, flatten(lightDiffuse));
+        gl.umaterialAmbient = gl.getUniformLocation(program, "materialAmbient");
+        gl.uniform4fv(gl.umaterialAmbient, flatten(materialAmbient));
         gl.umaterialDiffuse = gl.getUniformLocation(program, "materialDiffuse");
         gl.uniform4fv(gl.umaterialDiffuse, flatten(materialDiffuse));
+        gl.umaterialSpecular = gl.getUniformLocation(
+          program,
+          "materialSpecular"
+        );
+        gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
 
+        gl.uKa = gl.getUniformLocation(program, "Ka");
+        gl.uKd = gl.getUniformLocation(program, "Kd");
+        gl.uKs = gl.getUniformLocation(program, "Ks");
+        gl.umaterialShininess = gl.getUniformLocation(
+          program,
+          "materialShininess"
+        );
+
+        initSliderWithValue(document.querySelector("#Ka"), (value) => {
+          gl.uniform1f(gl.uKa, value);
+        });
+        initSliderWithValue(document.querySelector("#Kd"), (value) => {
+          gl.uniform1f(gl.uKd, value);
+        });
+        initSliderWithValue(document.querySelector("#Ks"), (value) => {
+          gl.uniform1f(gl.uKs, value);
+        });
+        initSliderWithValue(document.querySelector("#alpha"), (value) => {
+          gl.uniform1f(gl.umaterialShininess, value);
+        });
 
         initObject(
           gl,
           "http://www.student.dtu.dk/~s185126/02561/remister.obj",
-          0.1
+          0.2
         );
 
         tick();
@@ -129,6 +253,19 @@
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+        const eye = vec3(
+          Math.cos(rotation) * 5.0,
+          0.0,
+          Math.sin(rotation) * 5.0
+        );
+        const mv = lookAt(eye, vec3(0, 0, 0), vec3(0, 1, 0));
+        const p = perspective(45, 1, 0.1, 10);
+        gl.uniformMatrix4fv(gl.mvUniform, false, flatten(mv));
+        gl.uniformMatrix4fv(gl.pUniform, false, flatten(p));
+
+        const mNormal = normalMatrix(mv, true);
+        gl.uniformMatrix3fv(gl.nmUniform, false, flatten(mNormal));
+
         gl.drawElements(
           gl.TRIANGLES,
           g_drawingInfo.indices.length,
@@ -138,6 +275,7 @@
       };
 
       const tick = () => {
+        rotation += 0.01;
         render();
         requestAnimFrame(tick);
       };
