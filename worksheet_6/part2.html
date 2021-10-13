@@ -1,0 +1,189 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
+  </header>
+  <body>
+    <p>Part 2</p>
+    <select id="wrapping-mode"><select>
+    <select id="mag-filtering"><select>
+    <select id="min-filtering"><select>
+    <canvas id="view" width="512" height="512"></canvas>
+
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
+    <script src="../common/elementhelper.js"></script>
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec4 aPosition;
+      attribute vec2 aTexCoord;
+      uniform mat4 uModelView;
+      uniform mat4 uProjection;
+
+      varying vec2 fTexCoord;
+      void main() {
+        fTexCoord = aTexCoord;
+        gl_Position = uProjection * uModelView * aPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      uniform sampler2D texMap;
+      varying vec2 fTexCoord;
+      void main() {
+        gl_FragColor = texture2D(texMap, fTexCoord);
+      }
+    </script>
+
+    <script>
+      const canvas = document.getElementById("view");
+      const wrappingModeEl = document.getElementById("wrapping-mode");
+      const magFilterEl = document.getElementById("mag-filtering");
+      const minFilterEl = document.getElementById("min-filtering");
+
+      let gl, wrappingModes, magFilter, minFilter;
+      const texSize = 64;
+      const numCols = 8;
+      const numRows = 8;
+      let texels = new Uint8Array(4 * texSize * texSize);
+      for (var i = 0; i < texSize; ++i)
+        for (var j = 0; j < texSize; ++j) {
+          var patchx = Math.floor(i / (texSize / numRows));
+          var patchy = Math.floor(j / (texSize / numCols));
+          var c = patchx % 2 !== patchy % 2 ? 255 : 0;
+          var idx = 4 * (i * texSize + j);
+          texels[idx] = texels[idx + 1] = texels[idx + 2] = c;
+          texels[idx + 3] = 255;
+        }
+
+      const init = () => {
+        gl = WebGLUtils.setupWebGL(canvas);
+
+        wrappingModes = [
+          ["Repeat", gl.REPEAT],
+          ["Clamp-to-edge", gl.CLAMP_TO_EDGE],
+        ];
+
+        magFilter = [
+          ["Nearest", gl.NEAREST],
+          ["Linear", gl.LINEAR],
+        ];
+
+        minFilter = [
+          ...magFilter,
+
+          ["NEAREST M NEAREST", gl.NEAREST_MIPMAP_NEAREST],
+          ["LINEAR M NEAREST", gl.LINEAR_MIPMAP_NEAREST],
+          ["NEAREST M LINEAR", gl.NEAREST_MIPMAP_LINEAR],
+          ["LINEAR M LINEAR", gl.LINEAR_MIPMAP_LINEAR],
+        ]
+        addSelectElements(wrappingModeEl, wrappingModes, 0);
+        addSelectElements(magFilterEl, magFilter, 0);
+        addSelectElements(minFilterEl, minFilter, 0);
+
+        if (!gl) {
+          alert("WebGL isn’t available");
+        }
+
+        let program = initShaders(gl, "vertex-shader", "fragment-shader");
+        gl.useProgram(program);
+        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.enable(gl.DEPTH_TEST);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.BACK);
+
+        const vertices = [
+          vec4(-4, -1, -1, 1),
+          vec4(4, -1, -1, 1),
+          vec4(4, -1, -21, 1),
+          vec4(-4, -1, -21, 1),
+        ];
+        const texCoords = [
+          vec2(-1.5, 0.0),
+          vec2(2.5, 0.0),
+          vec2(2.5, 10.0),
+          vec2(-1.5, 10.0),
+        ];
+
+        let vBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
+
+        let aPosition = gl.getAttribLocation(program, "aPosition");
+        gl.vertexAttribPointer(aPosition, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(aPosition);
+
+        let texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          texSize,
+          texSize,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          texels
+        );
+
+        let tBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, tBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoords), gl.STATIC_DRAW);
+
+        let aTexCoord = gl.getAttribLocation(program, "aTexCoord");
+        gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(aTexCoord);
+
+        gl.uniform1i(gl.getUniformLocation(program, "texMap"), 0);
+
+        gl.generateMipmap(gl.TEXTURE_2D);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+        let uModelView = gl.getUniformLocation(program, "uModelView");
+        let uProjection = gl.getUniformLocation(program, "uProjection");
+
+        const mv = mat4();
+        const p = perspective(90, 1, 1, 21);
+        gl.uniformMatrix4fv(uModelView, false, flatten(mv));
+        gl.uniformMatrix4fv(uProjection, false, flatten(p));
+
+        render();
+      };
+
+      wrappingModeEl.onchange = (el) => {
+        const idx = parseInt(el.target.value);
+        const mode = wrappingModes[idx][1];
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, mode);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, mode);
+        render();
+      };
+
+      magFilterEl.onchange = (el) => {
+        const idx = parseInt(el.target.value);
+        const mode = magFilter[idx][1];
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, mode);
+        render();
+      };
+      
+      minFilterEl.onchange = (el) => {
+        const idx = parseInt(el.target.value);
+        const mode = minFilter[idx][1];
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mode);
+        render();
+      };
+      const render = () => {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+      };
+      window.onload = init;
+    </script>
+  </body>
+</html>
