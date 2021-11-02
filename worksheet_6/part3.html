@@ -63,12 +63,12 @@
         vec3 N = vNormal.xyz;
 
         float lambertian = max(dot(L, N), 0.0);
-        vec4 ka = vec4(vec3(0.5), 1.0);
+        vec4 ka = vec4(vec3(0.9), 1.0);
         vec4 kd = vec4(vec3(0.8), 1.0);
         vec4 diffuse = ka * lambertian +  kd *(materialDiffuse * lightDiffuse);
 
         float pi = 3.141592;
-        float u = 1.0 - atan(vNormal.z, -vNormal.x) / (2.0 * pi);
+        float u = 1.0 - atan(vNormal.z, vNormal.x) / (2.0 * pi);
         float v = acos(vNormal.y) / pi;
         gl_FragColor = diffuse * texture2D(uTexture, vec2(u, v));
       }
@@ -92,9 +92,9 @@
       const vc = vec4(-0.816497, -0.471405, 0.333333, 1);
       const vd = vec4(0.816497, -0.471405, 0.333333, 1);
 
-      const lightPosition = vec4(0.0, 0.0, -1.0, 0.0);
-      const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
-      const materialDiffuse = vec4(1, 1, 1, 1);
+      const lightPosition = vec4(0.0, -0.5, -1.0, 0.0);
+      const lightDiffuse = vec4(1, 1, 1, 1.0);
+      const materialDiffuse = vec4(0.1, 0.1, 0.1, 1);
 
       const divideTriangle = (a, b, c, count) => {
         if (count > 0) {
@@ -130,14 +130,14 @@
 
         let program = initShaders(gl, "vertex-shader", "fragment-shader");
         gl.useProgram(program);
-        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.clearColor(0, 0, 0, 1.0);
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.CULL_FACE);
+        gl.frontFace(gl.CW);
         gl.enable(gl.BLEND);
         gl.blendEquation(gl.FUNC_ADD);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        gl.cullFace(gl.BACK);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         let vBuffer = gl.createBuffer();
