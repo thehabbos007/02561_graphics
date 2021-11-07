@@ -40,3 +40,12 @@ const initSliderWithValue = (el, sliderCallback) => {
     setSliderValueTextAndCallback(el, value, sliderCallback);
   };
 };
+
+const initToggleCheckbox = (el, callback) => {
+  const currentCheckedState = el.checked;
+  el.oninput = (e) => {
+    const value = e.target.checked;
+    callback(value);
+  };
+  return currentCheckedState;
+};

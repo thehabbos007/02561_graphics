@@ -1,0 +1,247 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
+  </header>
+  <body>
+    <p>Part 4</p>
+    <input type="checkbox" name="orbit" id="orbit" checked="true">orbit</input>
+    <br>
+    <canvas id="view" width="512" height="512"></canvas>
+
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
+    <script src="../common/elementhelper.js"></script>
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec4 aPosition;
+      attribute vec2 aTexCoord;
+      uniform mat4 uModelView;
+      uniform mat4 uProjection;
+
+      varying vec2 fTexCoord;
+      void main() {
+        fTexCoord = aTexCoord;
+        gl_Position = uProjection * uModelView * aPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      uniform sampler2D texMap;
+      varying vec2 fTexCoord;
+      void main() {
+        gl_FragColor = texture2D(texMap, fTexCoord);
+      }
+    </script>
+
+    <script>
+      const canvas = document.getElementById("view");
+      const orbitEl = document.getElementById("orbit");
+
+      let gl,
+        rotation = 0;
+
+      let orbit = true;
+      orbit = initToggleCheckbox(orbitEl, (value) => {orbit = value})
+
+      const quad = (a, b, c, d) => {
+        return [a, b, c, a, c, d];
+      };
+
+      const groundVerts = quad(
+        ...[
+          vec4(-2, -1, -1, 1),
+          vec4(2, -1, -1, 1),
+          vec4(2, -1, -5, 1),
+          vec4(-2, -1, -5, 1),
+        ]
+      );
+      const groundTex = quad(
+        ...[vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0)]
+      );
+
+      const paraQuad = quad(
+        ...[
+          vec4(0.25, -0.5, -1.25, 1),
+          vec4(0.75, -0.5, -1.25, 1),
+          vec4(0.75, -0.5, -1.75, 1),
+          vec4(0.25, -0.5, -1.75, 1),
+        ]
+      );
+
+      const perpQuad = quad(
+        ...[
+          vec4(-1, -1, -2.5, 1),
+          vec4(-1, -1, -3, 1),
+          vec4(-1, -0, -3, 1),
+          vec4(-1, -0, -2.5, 1),
+        ]
+      );
+
+      const redTex = Array(6).fill([0.0, 0.0]);
+
+      let loadImage = async (src) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = src;
+        await img.decode();
+        return img;
+      };
+
+      const init = async () => {
+        gl = WebGLUtils.setupWebGL(canvas, { alpha: false });
+
+        if (!gl) {
+          alert("WebGL isn’t available");
+        }
+
+        let program = initShaders(gl, "vertex-shader", "fragment-shader");
+        gl.useProgram(program);
+        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND);
+
+        gl.blendEquation(gl.FUNC_ADD);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        let vBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          flatten([
+            ...flatten(groundVerts),
+            ...flatten(paraQuad),
+            ...flatten(perpQuad),
+          ]),
+          gl.STATIC_DRAW
+        );
+
+        let aPosition = gl.getAttribLocation(program, "aPosition");
+        gl.vertexAttribPointer(aPosition, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(aPosition);
+
+        let tBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, tBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          flatten([
+            ...flatten(groundTex),
+            ...flatten(redTex),
+            ...flatten(redTex),
+          ]),
+          gl.STATIC_DRAW
+        );
+
+        let aTexCoord = gl.getAttribLocation(program, "aTexCoord");
+        gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(aTexCoord);
+
+        let texLoc = gl.getUniformLocation(program, "texMap");
+        gl.texLoc = texLoc;
+        gl.uniform1i(texLoc, 0);
+
+        let img = await loadImage("./xamp23.png");
+        gl.activeTexture(gl.TEXTURE0);
+        let texture0 = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture0);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        gl.activeTexture(gl.TEXTURE1);
+        let texture1 = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture1);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGB,
+          1,
+          1,
+          0,
+          gl.RGB,
+          gl.UNSIGNED_BYTE,
+          new Uint8Array([255, 0, 0])
+        );
+
+        gl.activeTexture(gl.TEXTURE2);
+        let texture2 = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture2);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          1,
+          1,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          new Uint8Array([0, 0, 0, 200])
+        );
+
+        let uModelView = gl.getUniformLocation(program, "uModelView");
+        gl.uModelView = uModelView;
+        let uProjection = gl.getUniformLocation(program, "uProjection");
+        gl.uProjection = uProjection;
+
+        render();
+
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      };
+      window.onload = init;
+
+      const mv = mat4();
+      const p = perspective(90, 1, 1, 21);
+      const mSP = mat4();
+      // -3 since d = -(yl-yg) = -(2-(-1)) = -3
+      mSP[3][1] = 1 / -3;
+      mSP[3][3] = 0;
+
+      const render = () => {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        const lightPos = vec3(
+          Math.sin(rotation) * 2,
+          2.0,
+          Math.cos(rotation) * 2 - 2
+        );
+        let mS = mult(
+          mv,
+          translate(lightPos[0], lightPos[1] - 0.001, lightPos[2])
+        );
+        mS = mult(mS, mSP);
+        mS = mult(
+          mS,
+          translate(-lightPos[0], -(lightPos[1] - 0.001), -lightPos[2])
+        );
+
+        gl.uniformMatrix4fv(gl.uProjection, false, flatten(p));
+
+        gl.depthFunc(gl.LESS);
+        gl.uniformMatrix4fv(gl.uModelView, false, flatten(mv));
+        gl.uniform1i(gl.texLoc, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+        gl.depthFunc(gl.GREATER);
+        gl.uniformMatrix4fv(gl.uModelView, false, flatten(mS));
+        gl.uniform1i(gl.texLoc, 2);
+        gl.drawArrays(gl.TRIANGLES, 6, 6 * 2);
+
+        gl.depthFunc(gl.LESS);
+        gl.uniformMatrix4fv(gl.uModelView, false, flatten(mv));
+        gl.uniform1i(gl.texLoc, 1);
+        gl.drawArrays(gl.TRIANGLES, 6, 6 * 2);
+
+        if (orbit) rotation += 0.01;
+        requestAnimationFrame(render);
+      };
+    </script>
+  </body>
+</html>
