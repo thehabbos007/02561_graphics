@@ -21,7 +21,23 @@
 
   <body>
     <p>Part 1</p>
+    <div class="slider-input-group">
+      <label for="eyeView">eye</label>
+      <input
+        type="range"
+        min="0"
+        max="10"
+        value="0"
+        step="0.1"
+        class="slider"
+        id="eyeView"
+      /><span class="current"></span>
+    </div>
 
+    <input type="checkbox" name="orbit" id="orbit" checked="true" /> orbit light
+    <input type="checkbox" name="teamove" id="teamove" checked="true" /> move
+    teapot
+    <br />
     <canvas id="view" width="512" height="512"></canvas>
 
     <script src="../common/webgl-utils.js"></script>
@@ -61,7 +77,7 @@
       varying vec3 vLight, vEye, vNormal;
 
       void main() {
-        vec3 Ka = vec3(0.14, 0.14, 0.14);
+        vec3 Ka = vec3(0.1, 0.1, 0.1);
         vec3 Kd = vec3(0.8, 0.8, 0.8);
         vec3 Ks = vec3(1.0, 0.829, 0.829);
         float materialShininess = 15.0;
@@ -108,11 +124,25 @@
 
     <script>
       const canvas = document.getElementById("view");
+      const orbitEl = document.getElementById("orbit");
+      const teamoveEl = document.getElementById("teamove");
+
+      let orbit = initToggleCheckbox(orbitEl, (value) => {
+        orbit = value;
+      });
+      let teamove = initToggleCheckbox(teamoveEl, (value) => {
+        teamove = value;
+      });
 
       let gl, model;
       let rotation = 0,
-        drawLen = 0,
-        posLen = 0;
+        move = 0,
+        eyeSliderValue = 0;
+      (drawLen = 0), (posLen = 0);
+
+      initSliderWithValue(document.querySelector("#eyeView"), (value) => {
+        eyeSliderValue = value;
+      });
 
       const quad = (a, b, c, d) => {
         return [a, b, c, a, c, d];
@@ -158,6 +188,9 @@
         gl.blendEquation(gl.FUNC_ADD);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        // gl.enable(gl.CULL_FACE);
+        // gl.cullFace(gl.BACK);
+
         gl.getExtension("OES_element_index_uint");
 
         let rawObjText = await fetch(
@@ -221,7 +254,7 @@
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         // prettier-ignore
-        gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 200]));
+        gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 170]));
 
         // prettier-ignore
         let quad = {
@@ -267,13 +300,31 @@
         //gl.uniform1i(gl.getUniformLocation(gl.quadProgram, "texMap"), 0);
       };
 
-      const render = () => {
-        const lightPos = vec4(2, 2, -2, 0);
+      const tick = () => {
+        if (orbit) rotation += 0.01;
+        if (teamove) move += 0.01;
 
-        const eye = vec3(0, 0, 2);
+        render();
+        requestAnimFrame(tick);
+      };
+
+      const render = () => {
+        const lightPos = vec4(
+          Math.sin(rotation) * 2,
+          2.0,
+          Math.cos(rotation) * 2 - 3,
+          0
+        );
+
+        const sliderTranslated = eyeSliderValue;
+        const eye = vec3(
+          Math.sin(sliderTranslated) * 4,
+          1.5 + Math.sin(sliderTranslated),
+          Math.cos(sliderTranslated) * 4 - 3
+        );
         // const eye = vec3(4, 3, 1); //debug eye
         const v = lookAt(eye, vec3(0, 0, -3), vec3(0, 1, 0));
-        const teapotM = translate(vec3(0, -1, -3));
+        const teapotM = translate(vec3(0, -0.3 * Math.sin(move) - 0.75, -3));
         const teapotMV = mult(v, teapotM);
         const p = perspective(45, 1, 0.1, 20);
 
@@ -332,12 +383,6 @@
         );
 
         gl.drawElements(gl.TRIANGLES, drawLen, gl.UNSIGNED_INT, 0);
-      };
-
-      const tick = () => {
-        rotation += 0.01;
-        render();
-        requestAnimFrame(tick);
       };
 
       const initBuffer = (gl, buffer, program, locName, num, type) => {
