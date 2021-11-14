@@ -20,50 +20,14 @@
   </header>
 
   <body>
-    <p>Part 4</p>
-    <div class="slider-input-group">
-      <label for="Ka">Ka</label>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        value="0.7"
-        step="0.1"
-        class="slider"
-        id="Ka"
-      /><span class="current"></span>
-    </div>
-    <div class="slider-input-group">
-      <label for="Kd">Kd</label>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        value="0.5"
-        step="0.1"
-        class="slider"
-        id="Kd"
-      /><span class="current"></span>
-    </div>
-    <div class="slider-input-group">
-      <label for="Ks">Ks</label>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        value="0.1"
-        step="0.1"
-        class="slider"
-        id="Ks"
-      /><span class="current"></span>
-    </div>
+    <p>Part 1</p>
     <div class="slider-input-group">
       <label for="alpha">alpha</label>
       <input
         type="range"
         min="0"
         max="100"
-        value="5"
+        value="12"
         class="slider"
         id="alpha"
       /><span class="current"></span>
@@ -81,71 +45,53 @@
       attribute vec4 aNormal;
       attribute vec4 aColor;
 
+      uniform vec4 worldLightPos;
       uniform mat4 uModelView;
       uniform mat4 uProjection;
-      varying mat4 vModelView;
+      uniform mat4 normalMatrix;
 
-      varying vec4 vPosition, vNormal, vColor;
-      //varying mat4 vModelView;
+      varying vec4 vColor;
+      varying vec3 vLight, vEye, vNormal;
 
       void main() {
-        vPosition = aPosition;
-        vNormal = aNormal;
+        vec3 cameraPostion = (uModelView * aPosition).xyz;
+
         vColor = aColor;
-        vModelView = uModelView;
+        vLight = (uModelView * worldLightPos).xyz;
+        vEye = cameraPostion;
+        vNormal = (normalMatrix * aNormal).xyz;
 
         gl_Position = uProjection * uModelView  * aPosition;
       }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
       precision mediump float;
-      uniform mat3 normalMatrix;
-      uniform vec4 lightPosition;
 
-      uniform vec4 materialAmbient;
-      uniform vec4 materialDiffuse;
-      uniform vec4 materialSpecular;
-
-      uniform float Ka;
-      uniform float Kd;
-      uniform float Ks;
+      uniform vec3 Ka;
+      uniform vec3 Kd;
+      uniform vec3 Ks;
       uniform float materialShininess;
 
-
-      varying vec4 vPosition;
-      varying vec4 vNormal;
       varying vec4 vColor;
-      varying mat4 vModelView;
+      varying vec3 vLight, vEye, vNormal;
 
       void main() {
-        float Le = 1.6;
-        vec4 lightEmission = vec4(Le);
-
-        vec3 pos = vPosition.xyz;
-        vec3 L = lightPosition.w == 0.0
-               ? normalize(-(lightPosition).xyz)
-               : normalize((lightPosition).xyz - pos);
-
-        vec3 E = -normalize(pos);
-        vec3 N = normalize(normalMatrix * vNormal.xyz);
-        vec3 R = reflect(-L, N);
-
-        // Ambient term
-        vec4 ambient = Ka * lightEmission * materialAmbient;
+        vec3 L = normalize(vLight);
+        vec3 E = normalize(vEye);
+        vec3 N = normalize(vNormal);
+        vec3 R = normalize(2.0 * dot(L, N) * N - L);
 
         // Diffuse term
-        vec4 diffuseProduct = lightEmission * materialDiffuse;
-        float lambertian = max(dot(L, N), 0.0);
-        vec4 diffuse = Kd * lambertian * diffuseProduct;
+        float angle = dot(L, N);
+        vec3 diffuse = Kd * max(angle, 0.0);
 
         // Specular term
-        vec4 specularProduct = lightEmission * materialSpecular;
-        float angleOfSpecular = pow(max(dot(R, N), 0.0), materialShininess);
-        vec4 specular = Ks * angleOfSpecular * specularProduct;
+        float angleOfSpecular = pow(max(dot(R, E), 0.0), materialShininess);
+        vec3 specular = Ks * angleOfSpecular;
 
-        if(lambertian <= 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
+        if(angle < 0.0) specular = vec3(0.0);
 
-        gl_FragColor = ambient + diffuse + specular;
+        gl_FragColor = vec4(Ka + diffuse + specular, 1.0);
       }
     </script>
 
@@ -183,63 +129,34 @@
         gl.getExtension("OES_element_index_uint");
         gl.program = program;
 
+        gl.worldLightPos = gl.getUniformLocation(program, "worldLightPos");
         gl.mvUniform = gl.getUniformLocation(program, "uModelView");
         gl.pUniform = gl.getUniformLocation(program, "uProjection");
         gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
 
-        const lightPosition = vec4(1, 0, -1, 0);
-
-        const lightDiffuse = vec4(1.0, 1.0, 1.0, 1.0);
-        const materialAmbient = vec4(0.2, 0.0, 0.0, 1.0);
-        const materialDiffuse = vec4(0.5, 0.0, 0.17, 1.0);
-        const materialSpecular = vec4(0.4, 0.4, 0.4, 1.0);
-
-        const Ka = 1.6;
-        const Kd = 0.5;
-        const Ks = 0.1;
-        const shine = 5;
-
-        gl.uniform4fv(
-          gl.getUniformLocation(program, "lightPosition"),
-          flatten(lightPosition)
-        );
-        gl.ulightDiffuse = gl.getUniformLocation(program, "lightDiffuse");
-        gl.uniform4fv(gl.ulightDiffuse, flatten(lightDiffuse));
-        gl.umaterialAmbient = gl.getUniformLocation(program, "materialAmbient");
-        gl.uniform4fv(gl.umaterialAmbient, flatten(materialAmbient));
-        gl.umaterialDiffuse = gl.getUniformLocation(program, "materialDiffuse");
-        gl.uniform4fv(gl.umaterialDiffuse, flatten(materialDiffuse));
-        gl.umaterialSpecular = gl.getUniformLocation(
-          program,
-          "materialSpecular"
-        );
-        gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
+        const Ka = vec3(0.14, 0.14, 0.14);
+        const Kd = vec3(0.8, 0.8, 0.8);
+        const Ks = vec3(1, 0.829, 0.829);
 
         gl.uKa = gl.getUniformLocation(program, "Ka");
+        gl.uniform3fv(gl.uKa, flatten(Ka));
         gl.uKd = gl.getUniformLocation(program, "Kd");
+        gl.uniform3fv(gl.uKd, flatten(Kd));
         gl.uKs = gl.getUniformLocation(program, "Ks");
+        gl.uniform3fv(gl.uKs, flatten(Ks));
         gl.umaterialShininess = gl.getUniformLocation(
           program,
           "materialShininess"
         );
 
-        initSliderWithValue(document.querySelector("#Ka"), (value) => {
-          gl.uniform1f(gl.uKa, value);
-        });
-        initSliderWithValue(document.querySelector("#Kd"), (value) => {
-          gl.uniform1f(gl.uKd, value);
-        });
-        initSliderWithValue(document.querySelector("#Ks"), (value) => {
-          gl.uniform1f(gl.uKs, value);
-        });
         initSliderWithValue(document.querySelector("#alpha"), (value) => {
           gl.uniform1f(gl.umaterialShininess, value);
         });
 
         initObject(
           gl,
-          "http://www.student.dtu.dk/~s185126/02561/remister.obj",
-          0.2
+          "http://www.student.dtu.dk/~s185126/02561/teapot.obj",
+          0.4
         );
 
         tick();
@@ -252,6 +169,8 @@
         if (!g_drawingInfo) return;
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        const light = vec4(2.0, 2.0, 2.0, 0);
+        gl.uniform4fv(gl.worldLightPos, flatten(light));
 
         const eye = vec3(
           Math.cos(rotation) * 5.0,
@@ -263,8 +182,13 @@
         gl.uniformMatrix4fv(gl.mvUniform, false, flatten(mv));
         gl.uniformMatrix4fv(gl.pUniform, false, flatten(p));
 
-        const mNormal = normalMatrix(mv, true);
-        gl.uniformMatrix3fv(gl.nmUniform, false, flatten(mNormal));
+        // const mNormal = normalMatrix(mv, true);
+
+        gl.uniformMatrix4fv(
+          gl.nmUniform,
+          false,
+          flatten(transpose(inverse4(mv)))
+        );
 
         gl.drawElements(
           gl.TRIANGLES,
