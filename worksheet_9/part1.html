@@ -101,16 +101,6 @@
       let gl, model;
       let rotation = 0;
 
-      const initObject = (gl, objLocation, scale) => {
-        gl.program.aPosition = gl.getAttribLocation(gl.program, "aPosition");
-        gl.program.aNormal = gl.getAttribLocation(gl.program, "aNormal");
-        gl.program.aColor = gl.getAttribLocation(gl.program, "aColor");
-        model = initVertexBuffers(gl);
-        readOBJFile(objLocation, gl, model, scale);
-
-        return model;
-      };
-
       const init = () => {
         gl = WebGLUtils.setupWebGL(canvas);
 
@@ -118,8 +108,8 @@
           alert("WebGL isn’t available");
         }
 
-        let program = initShaders(gl, "vertex-shader", "fragment-shader");
-        gl.useProgram(program);
+        let teapotProgram = initShaders(gl, "vertex-shader", "fragment-shader");
+        gl.useProgram(teapotProgram);
         gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.enable(gl.DEPTH_TEST);
@@ -127,25 +117,28 @@
         gl.enable(gl.CULL_FACE);
         gl.cullFace(gl.BACK);
         gl.getExtension("OES_element_index_uint");
-        gl.program = program;
+        gl.teapotProgram = teapotProgram;
 
-        gl.worldLightPos = gl.getUniformLocation(program, "worldLightPos");
-        gl.mvUniform = gl.getUniformLocation(program, "uModelView");
-        gl.pUniform = gl.getUniformLocation(program, "uProjection");
-        gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
+        gl.worldLightPos = gl.getUniformLocation(
+          teapotProgram,
+          "worldLightPos"
+        );
+        gl.mvUniform = gl.getUniformLocation(teapotProgram, "uModelView");
+        gl.pUniform = gl.getUniformLocation(teapotProgram, "uProjection");
+        gl.nmUniform = gl.getUniformLocation(teapotProgram, "normalMatrix");
 
         const Ka = vec3(0.14, 0.14, 0.14);
         const Kd = vec3(0.8, 0.8, 0.8);
         const Ks = vec3(1, 0.829, 0.829);
 
-        gl.uKa = gl.getUniformLocation(program, "Ka");
+        gl.uKa = gl.getUniformLocation(teapotProgram, "Ka");
         gl.uniform3fv(gl.uKa, flatten(Ka));
-        gl.uKd = gl.getUniformLocation(program, "Kd");
+        gl.uKd = gl.getUniformLocation(teapotProgram, "Kd");
         gl.uniform3fv(gl.uKd, flatten(Kd));
-        gl.uKs = gl.getUniformLocation(program, "Ks");
+        gl.uKs = gl.getUniformLocation(teapotProgram, "Ks");
         gl.uniform3fv(gl.uKs, flatten(Ks));
         gl.umaterialShininess = gl.getUniformLocation(
-          program,
+          teapotProgram,
           "materialShininess"
         );
 
@@ -153,7 +146,15 @@
           gl.uniform1f(gl.umaterialShininess, value);
         });
 
-        initObject(
+        let teapot = {
+          vertexBuffer: initBuffer(gl, "aPosition", 3, gl.FLOAT),
+          normalBuffer: initBuffer(gl, "aNormal", 3, gl.FLOAT),
+          colorBuffer: initBuffer(gl, "aColor", 4, gl.FLOAT),
+          indexBuffer: { buffer: gl.createBuffer() },
+        };
+        gl.teapotProgram.teapot = teapot;
+
+        readOBJFile(
           gl,
           "http://www.student.dtu.dk/~s185126/02561/teapot.obj",
           0.4
@@ -164,7 +165,7 @@
 
       const render = () => {
         if (!g_drawingInfo && g_objDoc && g_objDoc.isMTLComplete()) {
-          g_drawingInfo = onReadComplete(gl, model, g_objDoc);
+          g_drawingInfo = onReadComplete(gl, g_objDoc);
         }
         if (!g_drawingInfo) return;
 
@@ -204,76 +205,47 @@
         requestAnimFrame(tick);
       };
 
-      function createEmptyArrayBuffer(gl, a_attribute, num, type) {
-        var buffer = gl.createBuffer();
-        if (!buffer) {
-          console.log("Failed to create the buffer object");
-          return null;
-        }
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-        gl.vertexAttribPointer(a_attribute, num, type, false, 0, 0);
-        gl.enableVertexAttribArray(a_attribute);
-
-        return buffer;
-      }
-
-      function initVertexBuffers(gl) {
-        let program = gl.program;
-        var o = new Object();
-        o.vertexBuffer = createEmptyArrayBuffer(
-          gl,
-          program.aPosition,
-          3,
-          gl.FLOAT
+      const initAttr = (gl, model) => {
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.buffer);
+        gl.vertexAttribPointer(
+          model.location,
+          model.num,
+          model.type,
+          false,
+          0,
+          0
         );
-        o.normalBuffer = createEmptyArrayBuffer(
-          gl,
-          program.aNormal,
-          3,
-          gl.FLOAT
-        );
-        o.colorBuffer = createEmptyArrayBuffer(gl, program.aColor, 4, gl.FLOAT);
-        o.indexBuffer = gl.createBuffer();
-        if (
-          !o.vertexBuffer ||
-          !o.normalBuffer ||
-          !o.colorBuffer ||
-          !o.indexBuffer
-        ) {
-          return null;
-        }
+        gl.enableVertexAttribArray(model.location);
+      };
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+      const initBuffer = (gl, locName, num, type) => {
+        let location = gl.getAttribLocation(gl.teapotProgram, locName);
+        let model = { buffer: gl.createBuffer(), location, num, type };
+        if (!model.buffer)
+          throw new Error("Failed to create the buffer object");
+        initAttr(gl, model);
+        return model;
+      };
 
-        return o;
-      }
-
-      function readOBJFile(fileName, gl, model, scale, reverse) {
+      function readOBJFile(gl, fileName, scale, reverse) {
         var request = new XMLHttpRequest();
 
         request.responseType = "text";
         request.onreadystatechange = function () {
           if (request.readyState === 4 && request.status !== 404) {
-            onReadOBJFile(
-              request.responseText,
-              fileName,
-              gl,
-              model,
-              scale,
-              reverse
-            );
+            onReadOBJFile(request.responseText, fileName, scale, reverse);
           }
         };
         request.open("GET", fileName, true); // Create a request to acquire the file
         request.send(); // Send the request
       }
 
-      var g_objDoc = null;
-      var g_drawingInfo = null;
+      let g_objDoc = null;
+      let g_drawingInfo = null;
 
-      function onReadOBJFile(fileString, fileName, gl, o, scale, reverse) {
-        var objDoc = new OBJDoc(fileName);
-        var result = objDoc.parse(fileString, scale, reverse);
+      function onReadOBJFile(fileString, fileName, scale, reverse) {
+        let objDoc = new OBJDoc(fileName);
+        let result = objDoc.parse(fileString, scale, reverse);
         if (!result) {
           g_objDoc = null;
           g_drawingInfo = null;
@@ -283,19 +255,19 @@
         g_objDoc = objDoc;
       }
 
-      function onReadComplete(gl, model, objDoc) {
-        var drawingInfo = objDoc.getDrawingInfo();
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, model.vertexBuffer);
+      function onReadComplete(gl, objDoc) {
+        let model = gl.teapotProgram.teapot;
+        let drawingInfo = objDoc.getDrawingInfo();
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.vertexBuffer.buffer);
         gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.vertices, gl.STATIC_DRAW);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, model.normalBuffer);
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.normalBuffer.buffer);
         gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.normals, gl.STATIC_DRAW);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, model.colorBuffer);
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.colorBuffer.buffer);
         gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.colors, gl.STATIC_DRAW);
 
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indexBuffer);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indexBuffer.buffer);
         gl.bufferData(
           gl.ELEMENT_ARRAY_BUFFER,
           drawingInfo.indices,
