@@ -1,0 +1,521 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
+    <style>
+      label {
+        display: inline-block;
+        width: 4rem;
+        text-align: right;
+        margin: 0 0.5rem 0 0;
+      }
+      input {
+        padding: 0;
+        margin: 0;
+      }
+      .slider-input-group {
+        display: flex;
+      }
+    </style>
+  </header>
+
+  <body>
+    <p>Part 2</p>
+    <div class="slider-input-group">
+      <label for="eyeView">eye</label>
+      <input
+        type="range"
+        min="0"
+        max="10"
+        value="0"
+        step="0.1"
+        class="slider"
+        id="eyeView"
+      /><span class="current"></span>
+    </div>
+
+    <input type="checkbox" name="orbit" id="orbit" checked="true" /> orbit light
+    <input type="checkbox" name="teamove" id="teamove" checked="true" /> move
+    teapot <input type="checkbox" name="lightPov" id="lightPov" /> light POV
+    <br />
+    <canvas id="view" width="512" height="512"></canvas>
+
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
+    <script src="../common/elementhelper.js"></script>
+    <script src="../common/OBJParser.js"></script>
+
+    <script id="teapot-vertex" type="x-shader/x-vertex">
+      attribute vec4 aPosition;
+      attribute vec4 aNormal;
+      attribute vec4 aColor;
+
+      uniform vec4 worldLightPos;
+      uniform mat4 uModelView;
+      uniform mat4 uProjection;
+      uniform mat4 normalMatrix;
+
+      varying vec4 vColor;
+      varying vec3 vLight, vEye, vNormal;
+
+      void main() {
+        vec3 cameraPostion = (uModelView * aPosition).xyz;
+
+        vColor = aColor;
+        vLight = (uModelView * worldLightPos).xyz;
+        vEye = cameraPostion;
+        vNormal = (normalMatrix * aNormal).xyz;
+
+        gl_Position = uProjection * uModelView  * aPosition;
+      }
+    </script>
+    <script id="teapot-fragment" type="x-shader/x-fragment">
+      precision mediump float;
+
+      varying vec4 vColor;
+      varying vec3 vLight, vEye, vNormal;
+
+      void main() {
+        vec3 Ka = vec3(0.1, 0.1, 0.1);
+        vec3 Kd = vec3(0.8, 0.8, 0.8);
+        vec3 Ks = vec3(1.0, 0.829, 0.829);
+        float materialShininess = 15.0;
+
+        vec3 L = normalize(vLight);
+        vec3 E = normalize(vEye);
+        vec3 N = normalize(vNormal);
+        vec3 R = normalize(2.0 * dot(L, N) * N - L);
+
+        // Diffuse term
+        float angle = dot(L, N);
+        vec3 diffuse = Kd * max(angle, 0.0);
+
+        // Specular term
+        float angleOfSpecular = pow(max(dot(R, E), 0.0), materialShininess);
+        vec3 specular = Ks * angleOfSpecular;
+
+        if(angle < 0.0) specular = vec3(0.0);
+
+        gl_FragColor = vec4(Ka + diffuse + specular, 1.0);
+      }
+    </script>
+
+    <script id="quad-vertex" type="x-shader/x-vertex">
+      attribute vec4 aPosition;
+      attribute vec2 aTexCoord;
+      uniform mat4 uModelView;
+      uniform mat4 uProjection;
+
+      varying vec4 vPosition;
+      varying vec2 vTexCoord;
+      void main() {
+        vPosition = aPosition;
+        vTexCoord = aTexCoord;
+        gl_Position = uProjection * uModelView * aPosition;
+      }
+    </script>
+    <script id="quad-fragment" type="x-shader/x-fragment">
+      precision mediump float;
+      uniform sampler2D texMap, texShadow;
+      varying vec4 vPosition;
+      varying vec2 vTexCoord;
+      void main() {
+        vec3 depth = (vPosition.xyz / (vPosition.w)) * 0.5 + 0.5;
+        float shadowValue = texture2D(texShadow, depth.xy).r;
+        float shadow = 1.0;
+        if (shadowValue < depth.z) {
+            shadow = 0.5;
+        }
+        vec4 color = texture2D(texMap, vTexCoord) * shadow;
+        color.a = 1.0;
+        gl_FragColor = color;
+      }
+    </script>
+
+    <script id="shadow-vertex" type="x-shader/x-vertex">
+      attribute vec3 aPosition;
+      uniform mat4 uModelView;
+      uniform mat4 uProjection;
+
+      void main() {
+        gl_Position = uProjection * uModelView * vec4(aPosition, 1.0);
+      }
+    </script>
+    <script id="shadow-fragment" type="x-shader/x-fragment">
+      precision mediump float;
+      void main() {
+        //const vec4 bitShift = vec4(1.0, 256.0, 256.0*256.0, 256.0*256.0*256.0);
+        //const vec4 bitMask = vec4(1.0/256.0, 1.0/256.0, 1.0/256.0, 0.0);
+        //vec4 rgbaDepth = fract(gl_FragCoord.z*bitShift);
+        //rgbaDepth -= rgbaDepth.gbaa*bitMask;
+        gl_FragColor = vec4(gl_FragColor.z, 0.0, 0.0, 0.0);
+      }
+    </script>
+
+    <script>
+      const canvas = document.getElementById("view");
+      const orbitEl = document.getElementById("orbit");
+      const teamoveEl = document.getElementById("teamove");
+      const lightPovEl = document.getElementById("lightPov");
+
+      let orbit = initToggleCheckbox(orbitEl, (value) => {
+        orbit = value;
+      });
+      let teamove = initToggleCheckbox(teamoveEl, (value) => {
+        teamove = value;
+      });
+      let lightPov = initToggleCheckbox(lightPovEl, (value) => {
+        lightPov = value;
+      });
+
+      let gl, model;
+      let rotation = 0,
+        move = 0,
+        eyeSliderValue = 0;
+      (drawLen = 0), (posLen = 0);
+
+      initSliderWithValue(document.querySelector("#eyeView"), (value) => {
+        eyeSliderValue = value;
+      });
+
+      const quad = (a, b, c, d) => {
+        return [a, b, c, a, c, d];
+      };
+
+      const groundVerts = quad(
+        vec3(-2, -1, -1),
+        vec3(2, -1, -1),
+        vec3(2, -1, -5),
+        vec3(-2, -1, -5)
+      );
+      const groundTex = quad(
+        vec2(0.0, 0.0),
+        vec2(1.0, 0.0),
+        vec2(1.0, 1.0),
+        vec2(0.0, 1.0)
+      );
+
+      let loadImage = async (src) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = src;
+        await img.decode();
+        return img;
+      };
+
+      const init = async () => {
+        gl = WebGLUtils.setupWebGL(canvas, { alpha: false });
+
+        if (!gl) {
+          alert("WebGL isn’t available");
+        }
+
+        let teapotProgram = initShaders(gl, "teapot-vertex", "teapot-fragment");
+        gl.teapotProgram = teapotProgram;
+        let quadProgram = initShaders(gl, "quad-vertex", "quad-fragment");
+        gl.quadProgram = quadProgram;
+        let shadowProgram = initShaders(gl, "shadow-vertex", "shadow-fragment");
+        gl.shadowProgram = shadowProgram;
+
+        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND);
+        gl.blendEquation(gl.FUNC_ADD);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        // gl.enable(gl.CULL_FACE);
+        // gl.cullFace(gl.BACK);
+
+        gl.getExtension("OES_element_index_uint");
+
+        let rawObjText = await fetch(
+          "http://www.student.dtu.dk/~s185126/02561/teapot.obj"
+        ).then((v) => v.text());
+
+        let objDoc = new OBJDoc("teapot.obj");
+        objDoc.parse(rawObjText, 0.25, false);
+        let drawingInfo = objDoc.getDrawingInfo();
+        drawLen = drawingInfo.indices.length;
+        posLen = drawingInfo.vertices.length / 3;
+
+        let vertices = [...drawingInfo.vertices, ...flatten(groundVerts)];
+        let normals = [
+          ...drawingInfo.normals,
+          ...flatten(Array(6).fill([0.0, 0.0, 0.0])),
+        ];
+        let texcoords = [
+          ...flatten(Array(posLen).fill([0.0, 0.0])),
+          ...flatten(groundTex),
+        ];
+
+        let posBuffer = gl.createBuffer();
+        let normalBuffer = gl.createBuffer();
+        let texcoordBuffer = gl.createBuffer();
+        let indexBuffer = gl.createBuffer();
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(vertices), gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(texcoords), gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(normals), gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+        gl.bufferData(
+          gl.ELEMENT_ARRAY_BUFFER,
+          drawingInfo.indices,
+          gl.STATIC_DRAW
+        );
+
+        gl.useProgram(quadProgram);
+
+        let shadowLoc = gl.getUniformLocation(quadProgram, "texShadow");
+        gl.uniform1i(shadowLoc, 2);
+        let texLoc = gl.getUniformLocation(quadProgram, "texMap");
+        gl.uniform1i(texLoc, 0);
+
+        let img = await loadImage("./xamp23.png");
+        gl.activeTexture(gl.TEXTURE0);
+        let marble_texture0 = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, marble_texture0);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+
+        gl.activeTexture(gl.TEXTURE1);
+        let shadow_texture1 = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, shadow_texture1);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        // prettier-ignore
+        gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 170]));
+
+        // prettier-ignore
+        let quad = {
+          vertexBuffer: initBuffer(gl, posBuffer, quadProgram, "aPosition", 3, gl.FLOAT),
+          texcoordBuffer: initBuffer(gl, texcoordBuffer, quadProgram, "aTexCoord", 2, gl.FLOAT),
+          mvUniform: gl.getUniformLocation(quadProgram, "uModelView"),
+          pUniform: gl.getUniformLocation(quadProgram, "uProjection"),
+          texLoc,
+          shadowLoc,
+        };
+        gl.quadProgram.quad = quad;
+
+        gl.useProgram(shadowProgram);
+
+        let framebuffer = initFramebufferObject(gl, 512, 512);
+
+        // prettier-ignore
+        let shadow = {
+          vertexBuffer: initBuffer(gl, posBuffer, shadowProgram, "aPosition", 3, gl.FLOAT),
+          framebuffer,
+          mvUniform: gl.getUniformLocation(shadowProgram, "uModelView"),
+          pUniform: gl.getUniformLocation(shadowProgram, "uProjection"),
+        };
+        gl.shadowProgram.shadow = shadow;
+
+        gl.useProgram(teapotProgram);
+
+        // prettier-ignore
+        let teapot = {
+          vertexBuffer: initBuffer(gl, posBuffer, teapotProgram, "aPosition", 3, gl.FLOAT),
+          normalBuffer: initBuffer(gl, normalBuffer, teapotProgram, "aNormal", 3, gl.FLOAT),
+          indexBuffer,
+          wlPosUniform: gl.getUniformLocation(teapotProgram, "worldLightPos"),
+          mvUniform: gl.getUniformLocation(teapotProgram, "uModelView"),
+          pUniform: gl.getUniformLocation(teapotProgram, "uProjection"),
+          nmUniform: gl.getUniformLocation(teapotProgram, "normalMatrix"),
+        };
+
+        gl.teapotProgram.teapot = teapot;
+
+        tick();
+      };
+
+      const initTeapotProgram = (gl, teapotModel) => {
+        let program = gl.teapotProgram;
+        gl.useProgram(program);
+        initAttr(gl, program, teapotModel.vertexBuffer);
+        initAttr(gl, program, teapotModel.normalBuffer);
+      };
+
+      const initQuadProgram = (gl, quadModel) => {
+        let program = gl.quadProgram;
+        gl.useProgram(program);
+        initAttr(gl, program, quadModel.vertexBuffer);
+        initAttr(gl, program, quadModel.texcoordBuffer);
+        //gl.uniform1i(gl.getUniformLocation(gl.quadProgram, "texMap"), 0);
+      };
+
+      const initShadowProgram = (gl, shadowModel) => {
+        let program = gl.shadowProgram;
+        gl.useProgram(program);
+        initAttr(gl, program, shadowModel.vertexBuffer);
+        //gl.uniform1i(gl.getUniformLocation(gl.quadProgram, "texMap"), 0);
+      };
+
+      const tick = () => {
+        if (orbit) rotation += 0.01;
+        if (teamove) move += 0.01;
+
+        render();
+        requestAnimFrame(tick);
+      };
+
+      const render = () => {
+        const lightPos = vec4(
+          Math.sin(rotation) * 3,
+          2.0,
+          Math.cos(rotation) * 3 - 3,
+          0
+        );
+        const lightEye = vec3(lightPos[0], lightPos[1], lightPos[2]);
+
+        const sliderTranslated = eyeSliderValue;
+        const eye = vec3(
+          Math.sin(sliderTranslated) * 4,
+          1.5 + Math.sin(sliderTranslated),
+          Math.cos(sliderTranslated) * 4 - 3
+        );
+        // const eye = vec3(4, 3, 1); //debug eye
+        const v = lookAt(eye, vec3(0, 0, -3), vec3(0, 1, 0));
+        const p = perspective(45, 1, 0.1, 20);
+        const lightV = lookAt(lightEye, vec3(0, 0, -3), vec3(0, 1, 0));
+        const lightP = perspective(90, 1, 0.1, 20);
+
+        const renderV = lightPov ? lightV : v;
+        const renderP = lightPov ? lightP : p;
+        const teapotM = translate(vec3(0, -0.3 * Math.sin(move) - 0.75, -3));
+        const teapotMV = mult(renderV, teapotM);
+
+        const mSP = mat4();
+        // yg = -1
+        mSP[3][1] = 1 / -(lightPos[1] + 1);
+        mSP[3][3] = 0;
+
+        // prettier-ignore
+        let mS = mult(renderV,translate(lightPos[0], lightPos[1] - 0.001, lightPos[2]));
+        mS = mult(mS, mSP);
+        mS = mult(
+          mS,
+          translate(-lightPos[0], -(lightPos[1] - 0.001), -lightPos[2])
+        );
+        mS = mult(mS, teapotM);
+
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        initShadowProgram(gl, gl.shadowProgram.shadow);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, gl.shadowProgram.shadow.framebuffer);
+        gl.viewport(0, 0, 512, 512);
+        gl.uniformMatrix4fv(
+          gl.shadowProgram.shadow.pUniform,
+          false,
+          flatten(lightP)
+        );
+        gl.uniformMatrix4fv(
+          gl.shadowProgram.shadow.mvUniform,
+          false,
+          flatten(lightV)
+        );
+
+        gl.depthFunc(gl.LESS);
+        gl.drawElements(gl.TRIANGLES, drawLen, gl.UNSIGNED_INT, 0);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        initQuadProgram(gl, gl.quadProgram.quad);
+
+        gl.uniformMatrix4fv(
+          gl.quadProgram.quad.pUniform,
+          false,
+          flatten(renderP)
+        );
+        gl.uniformMatrix4fv(
+          gl.quadProgram.quad.mvUniform,
+          false,
+          flatten(renderV)
+        );
+
+        gl.depthFunc(gl.LESS);
+        gl.uniform1i(gl.quadProgram.quad.texLoc, 0);
+        gl.drawArrays(gl.TRIANGLES, posLen, 6);
+
+        gl.uniformMatrix4fv(gl.quadProgram.quad.mvUniform, false, flatten(mS));
+        gl.depthFunc(gl.GREATER);
+        gl.uniform1i(gl.quadProgram.quad.texLoc, 1);
+        gl.drawElements(gl.TRIANGLES, drawLen, gl.UNSIGNED_INT, 0);
+
+        initTeapotProgram(gl, gl.teapotProgram.teapot);
+        gl.depthFunc(gl.LESS);
+
+        gl.uniform4fv(gl.teapotProgram.teapot.wlPosUniform, flatten(lightPos));
+
+        gl.uniformMatrix4fv(
+          gl.teapotProgram.teapot.mvUniform,
+          false,
+          flatten(teapotMV)
+        );
+        gl.uniformMatrix4fv(
+          gl.teapotProgram.teapot.pUniform,
+          false,
+          flatten(renderP)
+        );
+
+        gl.uniformMatrix4fv(
+          gl.teapotProgram.teapot.nmUniform,
+          false,
+          flatten(transpose(inverse4(teapotMV)))
+        );
+
+        gl.drawElements(gl.TRIANGLES, drawLen, gl.UNSIGNED_INT, 0);
+      };
+
+      const initBuffer = (gl, buffer, program, locName, num, type) => {
+        let model = { buffer, locName, num, type };
+        model.location = initAttr(gl, program, model);
+        return model;
+      };
+      const initAttr = (gl, program, model) => {
+        let location = gl.getAttribLocation(program, model.locName);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.buffer);
+        gl.vertexAttribPointer(location, model.num, model.type, false, 0, 0);
+        gl.enableVertexAttribArray(location);
+
+        return location;
+      };
+
+      // prettier-ignore
+      function initFramebufferObject(gl, width, height) {
+        let framebuffer = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        let renderbuffer = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+
+        let shadowMap = gl.createTexture(); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, shadowMap);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        framebuffer.texture = shadowMap;
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shadowMap, 0);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderbuffer);
+
+        let status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+        if (status !== gl.FRAMEBUFFER_COMPLETE) { console.log('Framebuffer object is incomplete: ' + status.toString()); }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+
+        framebuffer.width = width; framebuffer.height = height;
+        return framebuffer;
+        }
+
+      window.onload = init;
+    </script>
+  </body>
+</html>
