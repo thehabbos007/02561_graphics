@@ -1,0 +1,333 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
+    <style>
+      label {
+        display: inline-block;
+        width: 4rem;
+        text-align: right;
+        margin: 0 0.5rem 0 0;
+      }
+      input {
+        padding: 0;
+        margin: 0;
+      }
+      .slider-input-group {
+        display: flex;
+      }
+    </style>
+  </header>
+
+  <body>
+    <p>Part 1</p>
+    <canvas id="view" width="512" height="512"></canvas>
+
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
+    <script src="../common/elementhelper.js"></script>
+    <script src="../common/OBJParser.js"></script>
+    <script src="../common/quaternion.js"></script>
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec4 aPosition;
+      attribute vec4 aNormal;
+      //attribute vec4 aColor;
+
+      uniform mat4 uModelView;
+      uniform mat4 uProjection;
+      varying mat4 vModelView;
+
+      varying vec4 vPosition, vNormal;
+      //varying vec4 vColor;
+      //varying mat4 vModelView;
+
+      void main() {
+        vPosition = aPosition;
+        vNormal = aNormal;
+        //vColor = aColor;
+        vModelView = uModelView;
+
+        gl_Position = uProjection * uModelView  * aPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      uniform mat3 normalMatrix;
+      uniform vec4 lightPosition;
+
+      uniform vec4 lightDiffuse;
+      uniform vec4 materialAmbient;
+      uniform vec4 materialDiffuse;
+      uniform vec4 materialSpecular;
+
+      varying vec4 vPosition;
+      varying vec4 vNormal;
+      //varying vec4 vColor;
+      varying mat4 vModelView;
+
+      void main() {
+        float Le = 1.6;
+        vec4 lightEmission = lightDiffuse;
+
+        vec3 pos = vPosition.xyz;
+        vec3 L = lightPosition.w == 0.0
+               ? normalize(-(lightPosition).xyz)
+               : normalize((lightPosition).xyz - pos);
+
+        vec3 E = -normalize(pos);
+        vec3 N = normalize(normalMatrix * vNormal.xyz);
+        vec3 R = reflect(-L, N);
+
+        // Ambient term
+        vec4 ambient = 1.0 * lightEmission * materialAmbient;
+
+        // Diffuse term
+        vec4 diffuseProduct = lightEmission * materialDiffuse;
+        float lambertian = max(dot(L, N), 0.0);
+        vec4 diffuse = 1.0 * lambertian * diffuseProduct;
+
+        // Specular term
+        vec4 specularProduct = lightEmission * materialSpecular;
+        float angleOfSpecular = pow(max(dot(R, N), 0.0), 4.0);
+        vec4 specular = 1.0 * angleOfSpecular * specularProduct;
+
+        if(lambertian <= 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
+
+        gl_FragColor = ambient + diffuse + specular;
+      }
+    </script>
+
+    <script>
+      const canvas = document.getElementById("view");
+
+      let gl, model;
+      let rotation = 0;
+      let drawLen = 0;
+      let dragging = false;
+      let lastX = -1,
+        lastY = -1;
+      let current_action = 0;
+
+      function project_to_sphere(x, y) {
+        var r = 2;
+        var d = Math.sqrt(x * x + y * y);
+        var t = r * Math.sqrt(2);
+        var z;
+        if (d < r)
+          // Inside sphere
+          z = Math.sqrt(r * r - d * d);
+        else if (d < t) z = 0;
+        // On hyperbola
+        else z = (t * t) / d;
+        return z;
+      }
+
+      canvas.onmousedown = function (ev) {
+        // Mouse is pressed
+        ev.preventDefault();
+        var x = ev.clientX,
+          y = ev.clientY;
+        // Start dragging if a mouse is in <canvas>
+        var rect = ev.target.getBoundingClientRect();
+        if (
+          rect.left <= x &&
+          x < rect.right &&
+          rect.top <= y &&
+          y < rect.bottom
+        ) {
+          lastX = x;
+          lastY = y;
+          dragging = true;
+          current_action = ev.button + 1;
+        }
+      };
+
+      canvas.oncontextmenu = function (ev) {
+        ev.preventDefault();
+      };
+
+      canvas.onmouseup = function (ev) {
+        var x = ev.clientX,
+          y = ev.clientY;
+        if (x === lastX && y === lastY) {
+          qinc.setIdentity();
+        }
+        dragging = false;
+        current_action = 0;
+      }; // Mouse is released
+
+      var g_last = Date.now();
+
+      canvas.onmousemove = function (ev) {
+        // Mouse is moved
+        var x = ev.clientX,
+          y = ev.clientY;
+        if (dragging) {
+          var now = Date.now();
+          var elapsed = now - g_last;
+          if (elapsed > 20) {
+            g_last = now;
+            var rect = ev.target.getBoundingClientRect();
+            var s_x = ((x - rect.left) / rect.width - 0.5) * 2;
+            var s_y = (0.5 - (y - rect.top) / rect.height) * 2;
+            var s_last_x = ((lastX - rect.left) / rect.width - 0.5) * 2;
+            var s_last_y = (0.5 - (lastY - rect.top) / rect.height) * 2;
+            switch (current_action) {
+              case 1:
+                {
+                  // orbit
+                  var v1 = new vec3([s_x, s_y, project_to_sphere(s_x, s_y)]);
+                  var v2 = new vec3([
+                    s_last_x,
+                    s_last_y,
+                    project_to_sphere(s_last_x, s_last_y),
+                  ]);
+                  qinc = qinc.make_rot_vec2vec(v1.normalize(), v2.normalize());
+                }
+                break;
+              case 2:
+                {
+                  // dolly
+                  var e = eye_dist_pan.elements;
+                  e[0] += (s_y - s_last_y) * e[0];
+                  e[0] = Math.max(e[0], 0.01);
+                }
+                break;
+              case 3:
+                {
+                  // pan
+                  var e = eye_dist_pan.elements;
+                  e[1] += (s_x - s_last_x) * e[0] * 0.25;
+                  e[2] += (s_y - s_last_y) * e[0] * 0.25;
+                }
+                break;
+            }
+            (lastX = x), (lastY = y);
+          }
+        }
+      };
+
+      const init = async () => {
+        gl = WebGLUtils.setupWebGL(canvas);
+
+        if (!gl) {
+          alert("WebGL isn’t available");
+        }
+
+        let program = initShaders(gl, "vertex-shader", "fragment-shader");
+        gl.useProgram(program);
+        gl.clearColor(0.3921, 0.5843, 0.9294, 1.0);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.enable(gl.DEPTH_TEST);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.BACK);
+        gl.getExtension("OES_element_index_uint");
+        gl.program = program;
+
+        gl.mvUniform = gl.getUniformLocation(program, "uModelView");
+        gl.pUniform = gl.getUniformLocation(program, "uProjection");
+        gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
+
+        const lightPosition = vec4(1, 0, -1, 0);
+
+        const lightDiffuse = vec4(0.5, 0.5, 0.5, 1.0);
+        const materialAmbient = vec4(0.1, 0.1, 0.1, 1.0);
+        const materialDiffuse = vec4(0.8, 0.8, 0.8, 1.0);
+        const materialSpecular = vec4(1.0, 0.829, 0.829, 1.0);
+
+        const Ka = 1.6;
+        const Kd = 0.5;
+        const Ks = 0.1;
+        const shine = 5;
+
+        gl.uniform4fv(
+          gl.getUniformLocation(program, "lightPosition"),
+          flatten(lightPosition)
+        );
+        gl.ulightDiffuse = gl.getUniformLocation(program, "lightDiffuse");
+        gl.uniform4fv(gl.ulightDiffuse, flatten(lightDiffuse));
+        gl.umaterialAmbient = gl.getUniformLocation(program, "materialAmbient");
+        gl.uniform4fv(gl.umaterialAmbient, flatten(materialAmbient));
+        gl.umaterialDiffuse = gl.getUniformLocation(program, "materialDiffuse");
+        gl.uniform4fv(gl.umaterialDiffuse, flatten(materialDiffuse));
+        gl.umaterialSpecular = gl.getUniformLocation(
+          program,
+          "materialSpecular"
+        );
+        gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
+
+        let rawObjText = await fetch(
+          "http://www.student.dtu.dk/~s185126/02561/teapot.obj"
+        ).then((v) => v.text());
+        let objDoc = new OBJDoc("remister.obj");
+        objDoc.parse(rawObjText, 0.4, false);
+        let drawingInfo = objDoc.getDrawingInfo();
+        drawLen = drawingInfo.indices.length;
+
+        let posBuffer = gl.createBuffer();
+        initBuffer(gl, posBuffer, program, "aPosition", 3, gl.FLOAT);
+        let normalBuffer = gl.createBuffer();
+        initBuffer(gl, normalBuffer, program, "aNormal", 3, gl.FLOAT);
+        let indexBuffer = gl.createBuffer();
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.vertices, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.normals, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+        // prettier-ignore
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, drawingInfo.indices, gl.STATIC_DRAW);
+
+        tick();
+      };
+
+      const render = () => {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        const eye = vec3(
+          Math.cos(rotation) * 5.0,
+          0.0,
+          Math.sin(rotation) * 5.0
+        );
+        const mv = lookAt(eye, vec3(0, 0, 0), vec3(0, 1, 0));
+        const p = perspective(45, 1, 0.1, 10);
+        gl.uniformMatrix4fv(gl.mvUniform, false, flatten(mv));
+        gl.uniformMatrix4fv(gl.pUniform, false, flatten(p));
+
+        const mNormal = normalMatrix(mv, true);
+        gl.uniformMatrix3fv(gl.nmUniform, false, flatten(mNormal));
+
+        gl.drawElements(gl.TRIANGLES, drawLen, gl.UNSIGNED_INT, 0);
+      };
+
+      const tick = () => {
+        rotation += 0.01;
+        render();
+        requestAnimFrame(tick);
+      };
+
+      const initBuffer = (gl, buffer, program, locName, num, type) => {
+        let model = { buffer, locName, num, type };
+        model.location = initAttr(gl, program, model);
+        return model;
+      };
+
+      const initAttr = (gl, program, model) => {
+        let location = gl.getAttribLocation(program, model.locName);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, model.buffer);
+        gl.vertexAttribPointer(location, model.num, model.type, false, 0, 0);
+        gl.enableVertexAttribArray(location);
+
+        return location;
+      };
+
+      window.onload = init;
+    </script>
+  </body>
+</html>
