@@ -20,7 +20,7 @@
   </header>
 
   <body>
-    <p>Part 3</p>
+    <p>Part 4</p>
     <canvas id="view" width="512" height="512"></canvas>
 
     <script src="../common/webgl-utils.js"></script>
@@ -103,7 +103,6 @@
       const canvas = document.getElementById("view");
 
       let gl, model;
-      let rotation = 0;
       let drawLen = 0;
       let currentAngle = [0.0, 0.0]; // [x-axis, y-axis] degrees
 
@@ -343,8 +342,6 @@
 
       const tick = () => {
         qrot = qrot.multiply(qinc);
-
-        rotation += 0.01;
         render();
         requestAnimFrame(tick);
       };
