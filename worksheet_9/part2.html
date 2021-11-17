@@ -5,7 +5,7 @@
     <style>
       label {
         display: inline-block;
-        width: 4rem;
+        width: 7rem;
         text-align: right;
         margin: 0 0.5rem 0 0;
       }
@@ -21,6 +21,20 @@
 
   <body>
     <p>Part 2</p>
+    Sliding this FoV shows jagged 'aliasing' edges
+    <br />
+    <div class="slider-input-group">
+      <label for="lightFov">light fov</label>
+      <input
+        type="range"
+        min="35"
+        max="150"
+        value="40"
+        step="0.5"
+        class="slider"
+        id="lightFov"
+      /><span class="current"></span>
+    </div>
     <div class="slider-input-group">
       <label for="eyeView">eye</label>
       <input
@@ -175,6 +189,7 @@
       let gl, model;
       let rotation = 0;
       let move = 0;
+      let lightFovSliderValue = 0;
       let eyeSliderValue = 0;
       let drawLen = 0;
       let posLen = 0;
@@ -183,6 +198,10 @@
 
       initSliderWithValue(document.querySelector("#eyeView"), (value) => {
         eyeSliderValue = value;
+      });
+
+      initSliderWithValue(document.querySelector("#lightFov"), (value) => {
+        lightFovSliderValue = value;
       });
 
       const quad = (a, b, c, d) => {
@@ -394,7 +413,7 @@
         // const eye = vec3(4, 3, 1); //debug eye
         const v = lookAt(eye, vec3(0, 0, -3), vec3(0, 1, 0));
         const lightV = lookAt(lightEye, vec3(0, 0, -3), vec3(0, 1, 0));
-        const lightP = perspective(90, 1, 1, 20);
+        const lightP = perspective(lightFovSliderValue, 1, 0.1, 20);
 
         const renderV = lightPov ? lightV : v;
         const renderP = lightPov ? lightP : p;
@@ -415,7 +434,7 @@
         gl.uniformMatrix4fv(
           gl.shadowProgram.shadow.pUniform,
           false,
-          flatten(renderP)
+          flatten(lightP)
         );
 
         gl.uniformMatrix4fv(
@@ -434,7 +453,7 @@
         gl.uniformMatrix4fv(
           gl.quadProgram.quad.smvpUniform,
           false,
-          flatten(mult(renderP, lightV))
+          flatten(mult(lightP, lightV))
         );
 
         gl.uniformMatrix4fv(
