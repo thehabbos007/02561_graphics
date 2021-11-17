@@ -114,6 +114,9 @@
       const v = lookAt(eye, lookat, up);
       const p = perspective(45, 1, 0.1, 10);
 
+      const { ORBIT, DOLLY, PAN } = iota(0);
+      let interactionState = -1;
+
       const zDir = vec3(
         eye[0] - lookat[0],
         eye[1] - lookat[1],
@@ -122,7 +125,7 @@
       const eyeDist = Math.sqrt(
         zDir[0] * zDir[0] + zDir[1] * zDir[1] + zDir[2] * zDir[2]
       );
-      const eyeDistPan = vec3(eyeDist, 0, 0);
+      let eyeDistPan = vec3(eyeDist, 0, 0);
 
       let qrot = new Quaternion();
       let qinc = new Quaternion();
@@ -146,16 +149,15 @@
       };
 
       const initEventHandlers = (canvas, currentAngle) => {
-        let dragging = false; // Dragging or not
         let lastX = -1;
         let lastY = -1;
 
-        canvas.onmousedown = function (ev) {
+        canvas.onmousedown = function (e) {
           // Mouse is pressed
-          let x = ev.clientX;
-          let y = ev.clientY;
+          let x = e.clientX;
+          let y = e.clientY;
           // Start dragging if a mouse is in  <canvas>
-          let rect = ev.target.getBoundingClientRect();
+          let rect = e.target.getBoundingClientRect();
 
           if (
             rect.left <= x &&
@@ -165,22 +167,21 @@
           ) {
             lastX = x;
             lastY = y;
-            dragging = true;
+            interactionState = e.button;
           }
         };
 
-        canvas.oncontextmenu = function (ev) {
-          ev.preventDefault();
+        canvas.oncontextmenu = function (e) {
+          e.preventDefault();
         };
 
-        canvas.onmouseup = function (ev) {
-          let x = ev.clientX;
-          let y = ev.clientY;
+        canvas.onmouseup = function (e) {
+          let x = e.clientX;
+          let y = e.clientY;
           if (x === lastX && y === lastY) {
             qinc.setIdentity();
           }
-
-          dragging = false;
+          interactionState = -1;
         };
 
         canvas.onmouseout = canvas.onmouseup;
@@ -191,7 +192,7 @@
           // Mouse is moved
           let x = ev.clientX;
           let y = ev.clientY;
-          if (dragging) {
+          if (interactionState > -1) {
             let now = Date.now();
             var elapsed = now - last;
             if (elapsed < 20) return;
@@ -203,13 +204,35 @@
             const sLastX = ((lastX - rect.left) / rect.width - 0.5) * 2;
             const sLastY = (0.5 - (lastY - rect.top) / rect.height) * 2;
 
-            const v1 = new vec3(sX, sY, projectToSphere(sX, sY));
-            // prettier-ignore
-            const v2 = new vec3(sLastX, sLastY, projectToSphere(sLastX, sLastY));
-            qinc = qinc.make_rot_vec2vec(normalize(v1), normalize(v2));
+            switch (interactionState) {
+              case ORBIT:
+                const v1 = new vec3(sX, sY, projectToSphere(sX, sY));
+                // prettier-ignore
+                const v2 = new vec3(sLastX, sLastY, projectToSphere(sLastX, sLastY));
+                qinc = qinc.make_rot_vec2vec(normalize(v1), normalize(v2));
+                break;
+              case DOLLY:
+                eyeDistPan[0] += (sY - sLastY) * eyeDistPan[0] * 0.25;
+                eyeDistPan[0] = Math.max(eyeDistPan[0], 1.1);
+
+                break;
+              case PAN:
+                eyeDistPan[1] += (sX - sLastX) * eyeDistPan[0] * 0.25;
+                eyeDistPan[2] += (sY - sLastY) * eyeDistPan[0] * 0.25;
+
+                break;
+            }
           }
           lastX = x;
           lastY = y;
+        };
+
+        const scrollFactor = 0.05;
+        canvas.onwheel = (e) => {
+          e.preventDefault();
+          const delta = e.deltaY < 0 ? -scrollFactor : scrollFactor;
+          eyeDistPan[0] = eyeDistPan[0] + delta * eyeDistPan[0] * 0.25;
+          eyeDistPan[0] = Math.max(eyeDistPan[0], 1.1);
         };
       };
       const init = async () => {

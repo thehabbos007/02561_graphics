@@ -1,3 +1,17 @@
+// hlper to make ENUMS a la Golang
+function iota(start = 0) {
+  let count = start;
+  return new Proxy(
+    {},
+    {
+      get(o, prop) {
+        if (prop in o) return o[prop];
+        else return (o[prop] = count++);
+      },
+    }
+  );
+}
+
 const addSelectElement = (el, selected, text, value) => {
   const option = document.createElement("option");
   option.text = text;
