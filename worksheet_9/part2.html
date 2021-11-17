@@ -106,11 +106,12 @@
       attribute vec2 aTexCoord;
       uniform mat4 uModelView;
       uniform mat4 uProjection;
+      uniform mat4 uShadowMVP;
 
       varying vec4 vPosition;
       varying vec2 vTexCoord;
       void main() {
-        vPosition = aPosition;
+        vPosition = uShadowMVP * aPosition;
         vTexCoord = aTexCoord;
         gl_Position = uProjection * uModelView * aPosition;
       }
@@ -122,12 +123,12 @@
       varying vec2 vTexCoord;
       void main() {
         vec3 depth = (vPosition.xyz / (vPosition.w)) * 0.5 + 0.5;
-        float shadowValue = texture2D(texShadow, depth.xy).r;
-        float shadow = 1.0;
-        if (shadowValue < depth.z) {
-            shadow = 0.5;
+        float shadowValue = texture2D(texShadow, depth.xy).x;
+        float shadowDimming = 1.0;
+        if (shadowValue > depth.z) {
+            shadowDimming = 0.5;
         }
-        vec4 color = texture2D(texMap, vTexCoord) * shadow;
+        vec4 color = texture2D(texMap, vTexCoord) * shadowDimming;
         color.a = 1.0;
         gl_FragColor = color;
       }
@@ -137,7 +138,6 @@
       attribute vec3 aPosition;
       uniform mat4 uModelView;
       uniform mat4 uProjection;
-
       void main() {
         gl_Position = uProjection * uModelView * vec4(aPosition, 1.0);
       }
@@ -145,11 +145,7 @@
     <script id="shadow-fragment" type="x-shader/x-fragment">
       precision mediump float;
       void main() {
-        //const vec4 bitShift = vec4(1.0, 256.0, 256.0*256.0, 256.0*256.0*256.0);
-        //const vec4 bitMask = vec4(1.0/256.0, 1.0/256.0, 1.0/256.0, 0.0);
-        //vec4 rgbaDepth = fract(gl_FragCoord.z*bitShift);
-        //rgbaDepth -= rgbaDepth.gbaa*bitMask;
-        gl_FragColor = vec4(gl_FragColor.z, 0.0, 0.0, 0.0);
+        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
       }
     </script>
 
@@ -170,10 +166,13 @@
       });
 
       let gl, model;
-      let rotation = 0,
-        move = 0,
-        eyeSliderValue = 0;
-      (drawLen = 0), (posLen = 0);
+      let rotation = 0;
+      let move = 0;
+      let eyeSliderValue = 0;
+      let drawLen = 0;
+      let posLen = 0;
+      let lightEye = mat4();
+      const p = perspective(45, 1, 0.1, 25);
 
       initSliderWithValue(document.querySelector("#eyeView"), (value) => {
         eyeSliderValue = value;
@@ -274,8 +273,8 @@
         gl.useProgram(quadProgram);
 
         let shadowLoc = gl.getUniformLocation(quadProgram, "texShadow");
-        gl.uniform1i(shadowLoc, 2);
         let texLoc = gl.getUniformLocation(quadProgram, "texMap");
+        gl.uniform1i(shadowLoc, 2);
         gl.uniform1i(texLoc, 0);
 
         let img = await loadImage("./xamp23.png");
@@ -301,6 +300,7 @@
           texcoordBuffer: initBuffer(gl, texcoordBuffer, quadProgram, "aTexCoord", 2, gl.FLOAT),
           mvUniform: gl.getUniformLocation(quadProgram, "uModelView"),
           pUniform: gl.getUniformLocation(quadProgram, "uProjection"),
+          smvpUniform: gl.getUniformLocation(quadProgram, "uShadowMVP"),
           texLoc,
           shadowLoc,
         };
@@ -374,7 +374,7 @@
           Math.cos(rotation) * 3 - 3,
           0
         );
-        const lightEye = vec3(lightPos[0], lightPos[1], lightPos[2]);
+        lightEye = vec3(lightPos[0], lightPos[1], lightPos[2]);
 
         const sliderTranslated = eyeSliderValue;
         const eye = vec3(
@@ -384,28 +384,13 @@
         );
         // const eye = vec3(4, 3, 1); //debug eye
         const v = lookAt(eye, vec3(0, 0, -3), vec3(0, 1, 0));
-        const p = perspective(45, 1, 0.1, 20);
         const lightV = lookAt(lightEye, vec3(0, 0, -3), vec3(0, 1, 0));
-        const lightP = perspective(90, 1, 0.1, 20);
+        const lightP = perspective(90, 1, 1, 20);
 
         const renderV = lightPov ? lightV : v;
         const renderP = lightPov ? lightP : p;
         const teapotM = translate(vec3(0, -0.3 * Math.sin(move) - 0.75, -3));
         const teapotMV = mult(renderV, teapotM);
-
-        const mSP = mat4();
-        // yg = -1
-        mSP[3][1] = 1 / -(lightPos[1] + 1);
-        mSP[3][3] = 0;
-
-        // prettier-ignore
-        let mS = mult(renderV,translate(lightPos[0], lightPos[1] - 0.001, lightPos[2]));
-        mS = mult(mS, mSP);
-        mS = mult(
-          mS,
-          translate(-lightPos[0], -(lightPos[1] - 0.001), -lightPos[2])
-        );
-        mS = mult(mS, teapotM);
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -416,20 +401,27 @@
         gl.uniformMatrix4fv(
           gl.shadowProgram.shadow.pUniform,
           false,
-          flatten(lightP)
+          flatten(renderP)
         );
+
         gl.uniformMatrix4fv(
           gl.shadowProgram.shadow.mvUniform,
           false,
-          flatten(lightV)
+          flatten(mult(lightV, teapotM))
         );
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        gl.depthFunc(gl.LESS);
         gl.drawElements(gl.TRIANGLES, drawLen, gl.UNSIGNED_INT, 0);
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, canvas.width, canvas.height);
 
         initQuadProgram(gl, gl.quadProgram.quad);
+        gl.uniformMatrix4fv(
+          gl.quadProgram.quad.smvpUniform,
+          false,
+          flatten(mult(p, lightV))
+        );
 
         gl.uniformMatrix4fv(
           gl.quadProgram.quad.pUniform,
@@ -442,17 +434,10 @@
           flatten(renderV)
         );
 
-        gl.depthFunc(gl.LESS);
         gl.uniform1i(gl.quadProgram.quad.texLoc, 0);
         gl.drawArrays(gl.TRIANGLES, posLen, 6);
 
-        gl.uniformMatrix4fv(gl.quadProgram.quad.mvUniform, false, flatten(mS));
-        gl.depthFunc(gl.GREATER);
-        gl.uniform1i(gl.quadProgram.quad.texLoc, 1);
-        gl.drawElements(gl.TRIANGLES, drawLen, gl.UNSIGNED_INT, 0);
-
         initTeapotProgram(gl, gl.teapotProgram.teapot);
-        gl.depthFunc(gl.LESS);
 
         gl.uniform4fv(gl.teapotProgram.teapot.wlPosUniform, flatten(lightPos));
 
