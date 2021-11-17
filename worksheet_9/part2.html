@@ -108,10 +108,10 @@
       uniform mat4 uProjection;
       uniform mat4 uShadowMVP;
 
-      varying vec4 vPosition;
+      varying vec4 vPositionShadow;
       varying vec2 vTexCoord;
       void main() {
-        vPosition = uShadowMVP * aPosition;
+        vPositionShadow = uShadowMVP * aPosition;
         vTexCoord = aTexCoord;
         gl_Position = uProjection * uModelView * aPosition;
       }
@@ -119,18 +119,20 @@
     <script id="quad-fragment" type="x-shader/x-fragment">
       precision mediump float;
       uniform sampler2D texMap, texShadow;
-      varying vec4 vPosition;
+      varying vec4 vPositionShadow;
       varying vec2 vTexCoord;
+
+      float unpackDepth(const in vec4 depth) {
+        const vec4 bit_shift = vec4(1.0/(256.0*256.0*256.0), 1.0/(256.0*256.0), 1.0/256.0, 1.0);
+        return dot(depth, bit_shift);
+      }
+
       void main() {
-        vec3 depth = (vPosition.xyz / (vPosition.w)) * 0.5 + 0.5;
-        float shadowValue = texture2D(texShadow, depth.xy).x;
-        float shadowDimming = 1.0;
-        if (shadowValue > depth.z) {
-            shadowDimming = 0.5;
-        }
-        vec4 color = texture2D(texMap, vTexCoord) * shadowDimming;
-        color.a = 1.0;
-        gl_FragColor = color;
+        vec3 shadowPos = (vPositionShadow.xyz / (vPositionShadow.w)) * 0.5 + 0.5;
+        //float shadowDepth = texture2D(texShadow, shadowPos.xy).r;
+        float shadowDepth = unpackDepth(texture2D(texShadow, shadowPos.xy));
+        float visibility = (shadowPos.z > shadowDepth + 0.00015) ? 0.7 : 1.0;
+        gl_FragColor = vec4((texture2D(texMap, vTexCoord) * visibility).xyz, 1.0);
       }
     </script>
 
@@ -145,7 +147,12 @@
     <script id="shadow-fragment" type="x-shader/x-fragment">
       precision mediump float;
       void main() {
-        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+        const vec4 bit_shift = vec4(256.0*256.0*256.0, 256.0*256.0, 256.0, 1.0);
+        const vec4 bit_mask = vec4(0.0, 1.0/256.0, 1.0/256.0, 1.0/256.0);
+        vec4 depth = fract(gl_FragCoord.z * bit_shift);
+        depth -= depth.xxyz*bit_mask;
+        gl_FragColor = depth;
+        //gl_FragColor = vec4(gl_FragCoord.z, 0.0, 0.0, 1.0);
       }
     </script>
 
@@ -228,6 +235,7 @@
         // gl.cullFace(gl.BACK);
 
         gl.getExtension("OES_element_index_uint");
+        gl.getExtension("WEBGL_depth_texture");
 
         let rawObjText = await fetch(
           "http://www.student.dtu.dk/~s185126/02561/teapot.obj"
@@ -308,12 +316,12 @@
 
         gl.useProgram(shadowProgram);
 
-        let framebuffer = initFramebufferObject(gl, 512, 512);
+        let fbo = initFramebufferObject(gl, 512, 512);
 
         // prettier-ignore
         let shadow = {
           vertexBuffer: initBuffer(gl, posBuffer, shadowProgram, "aPosition", 3, gl.FLOAT),
-          framebuffer,
+          fbo,
           mvUniform: gl.getUniformLocation(shadowProgram, "uModelView"),
           pUniform: gl.getUniformLocation(shadowProgram, "uProjection"),
         };
@@ -368,6 +376,7 @@
       };
 
       const render = () => {
+        // gl.enable(gl.DEPTH_TEST);
         const lightPos = vec4(
           Math.sin(rotation) * 3,
           2.0,
@@ -396,8 +405,13 @@
 
         initShadowProgram(gl, gl.shadowProgram.shadow);
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, gl.shadowProgram.shadow.framebuffer);
-        gl.viewport(0, 0, 512, 512);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, gl.shadowProgram.shadow.fbo);
+        gl.viewport(
+          0,
+          0,
+          gl.shadowProgram.shadow.fbo.width,
+          gl.shadowProgram.shadow.fbo.height
+        );
         gl.uniformMatrix4fv(
           gl.shadowProgram.shadow.pUniform,
           false,
@@ -420,7 +434,7 @@
         gl.uniformMatrix4fv(
           gl.quadProgram.quad.smvpUniform,
           false,
-          flatten(mult(p, lightV))
+          flatten(mult(renderP, lightV))
         );
 
         gl.uniformMatrix4fv(
@@ -478,27 +492,35 @@
 
       // prettier-ignore
       function initFramebufferObject(gl, width, height) {
-        let framebuffer = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-        let renderbuffer = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
-        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
-
         let shadowMap = gl.createTexture(); gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, shadowMap);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, width, height, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
+        // needed even though it's not used
+        let unusedColorBuffer = gl.createTexture();gl.bindTexture(gl.TEXTURE_2D, unusedColorBuffer);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        let framebuffer = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
         framebuffer.texture = shadowMap;
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shadowMap, 0);
-        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderbuffer);
+
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, unusedColorBuffer, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, shadowMap, 0);
 
         let status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
         if (status !== gl.FRAMEBUFFER_COMPLETE) { console.log('Framebuffer object is incomplete: ' + status.toString()); }
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
         framebuffer.width = width; framebuffer.height = height;
         return framebuffer;
-        }
+      }
 
       window.onload = init;
     </script>
