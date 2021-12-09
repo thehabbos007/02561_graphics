@@ -1,0 +1,125 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
+    <style>
+      body {
+        margin: 0;
+      }
+      label {
+        display: inline-block;
+        width: 4rem;
+        text-align: right;
+        margin: 0 0.5rem 0 0;
+      }
+      input {
+        padding: 0;
+        margin: 0;
+      }
+      .slider-input-group {
+        display: flex;
+      }
+
+      #view {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+      }
+
+      #floating-controls {
+        padding: 1rem;
+        position: fixed;
+        top: 0;
+        left: 0;
+        background-color: azure;
+        width: 30rem;
+        min-height: 5rem;
+      }
+    </style>
+  </header>
+
+  <body>
+    <div id="floating-controls">
+      <p>MatCap editor/viewer</p>
+    </div>
+    <canvas id="view"></canvas>
+
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
+    <script src="../common/elementhelper.js"></script>
+    <script src="../common/OBJParser.js"></script>
+    <script src="../common/quaternion.js"></script>
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec4 aPosition;
+      attribute vec4 aNormal;
+      //attribute vec4 aColor;
+
+      uniform mat4 uModelView;
+      uniform mat4 uProjection;
+      varying mat4 vModelView;
+
+      varying vec4 vPosition, vNormal;
+      //varying vec4 vColor;
+      //varying mat4 vModelView;
+
+      void main() {
+        vPosition = aPosition;
+        vNormal = aNormal;
+        //vColor = aColor;
+        vModelView = uModelView;
+
+        gl_Position = uProjection * uModelView  * aPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      uniform mat3 normalMatrix;
+      uniform vec4 lightPosition;
+
+      uniform vec4 lightDiffuse;
+      uniform vec4 materialAmbient;
+      uniform vec4 materialDiffuse;
+      uniform vec4 materialSpecular;
+
+      varying vec4 vPosition;
+      varying vec4 vNormal;
+      //varying vec4 vColor;
+      varying mat4 vModelView;
+
+      void main() {
+        float Le = 1.6;
+        vec4 lightEmission = lightDiffuse;
+
+        vec3 pos = vPosition.xyz;
+        vec3 L = lightPosition.w == 0.0
+      		 ? normalize(-(lightPosition).xyz)
+      		 : normalize((lightPosition).xyz - pos);
+
+        vec3 E = -normalize(pos);
+        vec3 N = normalize(normalMatrix * vNormal.xyz);
+        vec3 R = reflect(-L, N);
+
+        // Ambient term
+        vec4 ambient = 1.0 * lightEmission * materialAmbient;
+
+        // Diffuse term
+        vec4 diffuseProduct = lightEmission * materialDiffuse;
+        float lambertian = max(dot(L, N), 0.0);
+        vec4 diffuse = 1.0 * lambertian * diffuseProduct;
+
+        // Specular term
+        vec4 specularProduct = lightEmission * materialSpecular;
+        float angleOfSpecular = pow(max(dot(R, N), 0.0), 4.0);
+        vec4 specular = 1.0 * angleOfSpecular * specularProduct;
+
+        if(lambertian <= 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
+
+        gl_FragColor = ambient + diffuse + specular;
+      }
+    </script>
+
+    <script src="script.js"></script>
+  </body>
+</html>
