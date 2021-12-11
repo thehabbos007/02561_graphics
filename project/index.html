@@ -2,22 +2,26 @@
   <header>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="../milligram.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css"
+      integrity="sha512-0SPWAwpC/17yYyZ/4HSllgaK7/gg9OlVozq8K7rf3J8LvCjYEEIfzzpnA2/SSjpGIunCSD18r3UhvDcu/xncWA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"
+      integrity="sha512-ooSWpxJsiXe6t4+PPjCgYmVfr1NS5QXJACcR/FPpsdm6kqG1FmQ2SVyg2RXeVuCRBLr0lWHnWJP6Zs1Efvxzww=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
     <style>
+      :root {
+        --sidebar-width: 40rem;
+      }
+
       body {
         margin: 0;
-      }
-      label {
-        display: inline-block;
-        width: 4rem;
-        text-align: right;
-        margin: 0 0.5rem 0 0;
-      }
-      input {
-        padding: 0;
-        margin: 0;
-      }
-      .slider-input-group {
-        display: flex;
       }
 
       #view {
@@ -26,24 +30,211 @@
         display: block;
       }
 
+      .shrunk-view {
+        width: calc(100vw - var(--sidebar-width)) !important;
+      }
+
       #floating-controls {
         padding: 1rem;
         position: fixed;
         top: 0;
-        left: 0;
-        background-color: azure;
-        width: 30rem;
+        right: 0;
+        border: 2px solid #8e44ad;
+        width: var(--sidebar-width);
         min-height: 5rem;
+      }
+
+      .side-bar {
+        position: relative;
+        height: 100vh;
+      }
+
+      .pane-controls {
+        width: 100%;
+      }
+
+      .float-input-group {
+        display: flex;
+        flex-direction: row;
+        padding: 2px;
+      }
+
+      .float-input {
+        flex-grow: 2;
+        border: none;
+      }
+
+      input:focus {
+        outline: none;
+      }
+
+      .button {
+        padding: 0 1rem;
+      }
+
+      .wide {
+        box-sizing: border-box;
+        width: 100%;
+      }
+
+      .hidden {
+        position: fixed;
+        visibility: hidden;
+      }
+
+      #editor-view {
+        margin-top: 2rem;
+      }
+
+      #editor-view .img-wrapper {
+        display: block;
+        max-width: var(--sidebar-width);
+      }
+      .cropper-view-box,
+      .cropper-face {
+        border-radius: 50%;
+
+        border-width: 2px;
       }
     </style>
   </header>
 
   <body>
-    <div id="floating-controls">
-      <p>MatCap editor/viewer</p>
-    </div>
-    <canvas id="view"></canvas>
+    <div id="floating-controls" class="side-bar">
+      <h3>MatCap editor/viewer</h3>
+      <div class="pane-controls">
+        <label for="matcapUrl">Load MatCap from URL:</label>
+        <div class="float-input-group">
+          <input type="url" name="matcapUrl" id="matcapUrl" />
+          <button id="set-url" class="button">Set</button>
+        </div>
 
+        <label for="editorButton">Open MatCap image editor</label>
+        <div class="float-input-group">
+          <button
+            id="editor-toggle-button"
+            class="button wide"
+            name="editorButton"
+            id="editorButton"
+          >
+            Close Editor
+          </button>
+        </div>
+
+        <div id="editor-view" class="">
+          <label>Croppable source</label>
+          <div class="img-wrapper">
+            <img
+              id="matcap-raw"
+              src="https://mua.github.io/models/matcap/test_gold.jpg"
+              alt=""
+            />
+          </div>
+
+          <br />
+          <label for="matcap">MatCap result</label>
+          <img id="matcap" alt="" />
+        </div>
+      </div>
+    </div>
+    <canvas id="view" class="shrunk-view"></canvas>
+
+    <script>
+      const SIDEBAR = "side-bar";
+      const SHRUNKEN = "shrunk-view";
+      const HIDDEN = "hidden";
+      const BTN_TEXT_OPEN = "Open Editor";
+      const BTN_TEXT_CLOSE = "Close Editor";
+
+      const view = document.getElementById("view");
+      const editor = document.getElementById("editor-view");
+      const floatingCtl = document.getElementById("floating-controls");
+      const editorButton = document.getElementById("editor-toggle-button");
+      let ctlIsExpanded = true;
+
+      editorButton.onclick = (e) => {
+        ctlIsExpanded = !ctlIsExpanded;
+        floatingCtl.classList.toggle(SIDEBAR, ctlIsExpanded);
+        view.classList.toggle(SHRUNKEN, ctlIsExpanded);
+        editor.classList.toggle(HIDDEN, !ctlIsExpanded);
+        e.target.innerText = ctlIsExpanded ? BTN_TEXT_CLOSE : BTN_TEXT_OPEN;
+        window.dispatchEvent(new Event("resize"));
+      };
+
+      const matcapRaw = document.getElementById("matcap-raw");
+      const matcap = document.getElementById("matcap");
+      let ctx;
+      const getRoundedCanvas = (sourceCanvas) => {
+        let canvas = document.createElement("canvas");
+        let context = canvas.getContext("2d");
+
+        let width = sourceCanvas.width;
+        let height = sourceCanvas.height;
+        ctx = context;
+        context.fill();
+
+        canvas.width = width;
+        canvas.height = height;
+        context.beginPath();
+        context.drawImage(sourceCanvas, 0, 0, width, height);
+        context.globalCompositeOperation = "destination-in";
+        context.arc(
+          width / 2,
+          height / 2,
+          Math.min(width, height) / 2,
+          0,
+          2 * Math.PI,
+          true
+        );
+        context.fill();
+
+        context.beginPath();
+        context.fillStyle = "black";
+        context.globalCompositeOperation = "source-over";
+        context.arc(
+          width / 2,
+          height / 2,
+          Math.min(width, height) / 2,
+          0,
+          2 * Math.PI
+        );
+        ctx.rect(width, 0, -width, height);
+        ctx.fill();
+
+        return canvas;
+      };
+
+      let cropper;
+
+      const transferCroppedImage = (cropper) => {
+        let croppedCanvas = cropper.getCroppedCanvas({ fillColor: "#000" });
+        let roundedCanvas = getRoundedCanvas(croppedCanvas);
+        matcap.src = roundedCanvas.toDataURL();
+      };
+
+      matcapRaw.onload = (e) => {
+        const image = e.target;
+
+        if (cropper != null) cropper.destroy();
+
+        cropper = new Cropper(image, {
+          aspectRatio: 1,
+          viewMode: 1,
+          autoCropArea: 1,
+          zoomOnWheel: false,
+          ready: function () {
+            croppable = true;
+
+            transferCroppedImage(this.cropper);
+          },
+          cropend: function (event) {
+            console.log(event.detail);
+            if (!croppable) return;
+            transferCroppedImage(this.cropper);
+          },
+        });
+      };
+    </script>
     <script src="../common/webgl-utils.js"></script>
     <script src="../common/initShaders.js"></script>
     <script src="../common/MV.js"></script>
@@ -54,69 +245,35 @@
     <script id="vertex-shader" type="x-shader/x-vertex">
       attribute vec4 aPosition;
       attribute vec4 aNormal;
-      //attribute vec4 aColor;
 
-      uniform mat4 uModelView;
+      uniform mat4 uModel;
+      uniform mat4 uView;
       uniform mat4 uProjection;
-      varying mat4 vModelView;
 
-      varying vec4 vPosition, vNormal;
-      //varying vec4 vColor;
-      //varying mat4 vModelView;
+      varying vec3 vPosition, vNormal;
 
       void main() {
-        vPosition = aPosition;
-        vNormal = aNormal;
-        //vColor = aColor;
-        vModelView = uModelView;
+        vPosition = aPosition.xyz;
+        vNormal = aNormal.xyz;
 
-        gl_Position = uProjection * uModelView  * aPosition;
+        gl_Position = uProjection * uView * uModel  * aPosition;
       }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
-      precision mediump float;
-      uniform mat3 normalMatrix;
-      uniform vec4 lightPosition;
+      precision highp float;
+      uniform mat4 uView;
 
       uniform vec4 lightDiffuse;
       uniform vec4 materialAmbient;
       uniform vec4 materialDiffuse;
       uniform vec4 materialSpecular;
+      uniform sampler2D matCap;
 
-      varying vec4 vPosition;
-      varying vec4 vNormal;
-      //varying vec4 vColor;
-      varying mat4 vModelView;
+      varying vec3 vNormal;
 
       void main() {
-        float Le = 1.6;
-        vec4 lightEmission = lightDiffuse;
-
-        vec3 pos = vPosition.xyz;
-        vec3 L = lightPosition.w == 0.0
-      		 ? normalize(-(lightPosition).xyz)
-      		 : normalize((lightPosition).xyz - pos);
-
-        vec3 E = -normalize(pos);
-        vec3 N = normalize(normalMatrix * vNormal.xyz);
-        vec3 R = reflect(-L, N);
-
-        // Ambient term
-        vec4 ambient = 1.0 * lightEmission * materialAmbient;
-
-        // Diffuse term
-        vec4 diffuseProduct = lightEmission * materialDiffuse;
-        float lambertian = max(dot(L, N), 0.0);
-        vec4 diffuse = 1.0 * lambertian * diffuseProduct;
-
-        // Specular term
-        vec4 specularProduct = lightEmission * materialSpecular;
-        float angleOfSpecular = pow(max(dot(R, N), 0.0), 4.0);
-        vec4 specular = 1.0 * angleOfSpecular * specularProduct;
-
-        if(lambertian <= 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
-
-        gl_FragColor = ambient + diffuse + specular;
+        vec2 muv = vec2(uView * vec4(normalize(vNormal), 0))*0.5+vec2(0.5,0.5);
+        gl_FragColor = texture2D(matCap, vec2(muv.x, 1.0-muv.y));
       }
     </script>
 

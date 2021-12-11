@@ -3,12 +3,11 @@ let gl, model;
 let drawLen = 0;
 let currentAngle = [0.0, 0.0]; // [x-axis, y-axis] degrees
 
-const eye = vec3(0, 0, 4);
+const eye = vec3(0, 0, 5);
 const lookat = vec3(0, 0, 0);
 let up = vec3(0, 1, 0);
 const m = translate(0, -0.5, 0);
 const v = lookAt(eye, lookat, up);
-const p = perspective(45, 1, 0.1, 10);
 
 const { ORBIT, DOLLY, PAN } = iota(0);
 let interactionState = -1;
@@ -125,6 +124,25 @@ const initEventHandlers = (canvas, currentAngle) => {
   };
 };
 
+const makeFloorVerts = () => {
+  let result = [];
+  for (let i = -2.5; i <= 2.5; i += 0.25) {
+    result.push(i, 0, 2.5);
+    result.push(i, 0, -2.5);
+    result.push(2.5, 0, i);
+    result.push(-2.5, 0, i);
+  }
+  return result;
+};
+
+let loadImage = async (src) => {
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = src;
+  await img.decode();
+  return img;
+};
+
 const render = () => {
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
@@ -151,12 +169,14 @@ const render = () => {
     vec3(rUp[0], rUp[1], rUp[2])
   );
 
-  const mv = mult(newLookAt, m);
+  const v = newLookAt;
+  const p = perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 10);
 
-  gl.uniformMatrix4fv(gl.mvUniform, false, flatten(mv));
+  gl.uniformMatrix4fv(gl.mUniform, false, flatten(m));
+  gl.uniformMatrix4fv(gl.vUniform, false, flatten(v));
   gl.uniformMatrix4fv(gl.pUniform, false, flatten(p));
 
-  const mNormal = normalMatrix(mv, true);
+  const mNormal = normalMatrix(mult(v, m), true);
   gl.uniformMatrix3fv(gl.nmUniform, false, flatten(mNormal));
 
   gl.drawElements(gl.TRIANGLES, drawLen, gl.UNSIGNED_INT, 0);
@@ -180,7 +200,7 @@ const init = async () => {
   gl = WebGLUtils.setupWebGL(canvas);
 
   if (!gl) {
-    alert("WebGL isn’t available");
+    alert("WebGL isn't available");
   }
 
   let program = initShaders(gl, "vertex-shader", "fragment-shader");
@@ -189,12 +209,13 @@ const init = async () => {
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.enable(gl.DEPTH_TEST);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.BACK);
+  // gl.enable(gl.CULL_FACE);
+  // gl.cullFace(gl.BACK);
   gl.getExtension("OES_element_index_uint");
   gl.program = program;
 
-  gl.mvUniform = gl.getUniformLocation(program, "uModelView");
+  gl.mUniform = gl.getUniformLocation(program, "uModel");
+  gl.vUniform = gl.getUniformLocation(program, "uView");
   gl.pUniform = gl.getUniformLocation(program, "uProjection");
   gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
 
@@ -221,7 +242,7 @@ const init = async () => {
   gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
 
   let rawObjText = await fetch(
-    "http://www.student.dtu.dk/~s185126/02561/teapot.obj"
+    "https://www.student.dtu.dk/~s185126/02561/teapot.obj"
   ).then((v) => v.text());
   let objDoc = new OBJDoc("remister.obj");
   objDoc.parse(rawObjText, 0.4, false);
@@ -232,6 +253,7 @@ const init = async () => {
   initBuffer(gl, posBuffer, program, "aPosition", 3, gl.FLOAT);
   let normalBuffer = gl.createBuffer();
   initBuffer(gl, normalBuffer, program, "aNormal", 3, gl.FLOAT);
+
   let indexBuffer = gl.createBuffer();
 
   gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
@@ -243,6 +265,17 @@ const init = async () => {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
   // prettier-ignore
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, drawingInfo.indices, gl.STATIC_DRAW);
+
+  let img = await loadImage(
+    "https://mua.github.io/models/matcap/test_gold.jpg"
+  );
+  gl.activeTexture(gl.TEXTURE0);
+  let texture0 = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture0);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
   onResize();
   tick();
