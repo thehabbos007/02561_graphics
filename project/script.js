@@ -40,7 +40,7 @@ const projectToSphere = (x, y) => {
   return z;
 };
 
-const initEventHandlers = (canvas, currentAngle) => {
+const initEventHandlers = (canvas) => {
   let lastX = -1;
   let lastY = -1;
 
@@ -197,6 +197,25 @@ const bufferImage = (img) => {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 };
 
+const loadObj = async (posBuffer, normalBuffer, indexBuffer, objUrl) => {
+  let rawObjText = await fetch(objUrl).then((v) => v.text());
+  let objDoc = new OBJDoc("obj");
+  objDoc.parse(rawObjText, 0.4, false);
+  let drawingInfo = objDoc.getDrawingInfo();
+  drawLen = drawingInfo.indices.length;
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.vertices, gl.STATIC_DRAW);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.normals, gl.STATIC_DRAW);
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, drawingInfo.indices, gl.STATIC_DRAW);
+
+  return drawingInfo;
+};
+
 const init = async () => {
   gl = WebGLUtils.setupWebGL(canvas);
 
@@ -227,7 +246,7 @@ const init = async () => {
   const materialDiffuse = vec4(0.8, 0.8, 0.8, 1.0);
   const materialSpecular = vec4(1.0, 0.829, 0.829, 1.0);
 
-  initEventHandlers(canvas, currentAngle);
+  initEventHandlers(canvas);
 
   gl.uniform4fv(
     gl.getUniformLocation(program, "lightPosition"),
@@ -242,14 +261,6 @@ const init = async () => {
   gl.umaterialSpecular = gl.getUniformLocation(program, "materialSpecular");
   gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
 
-  let rawObjText = await fetch(
-    "https://www.student.dtu.dk/~s185126/02561/teapot.obj"
-  ).then((v) => v.text());
-  let objDoc = new OBJDoc("remister.obj");
-  objDoc.parse(rawObjText, 0.4, false);
-  let drawingInfo = objDoc.getDrawingInfo();
-  drawLen = drawingInfo.indices.length;
-
   let posBuffer = gl.createBuffer();
   initBuffer(gl, posBuffer, program, "aPosition", 3, gl.FLOAT);
   let normalBuffer = gl.createBuffer();
@@ -257,15 +268,12 @@ const init = async () => {
 
   let indexBuffer = gl.createBuffer();
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.vertices, gl.STATIC_DRAW);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, drawingInfo.normals, gl.STATIC_DRAW);
-
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-  // prettier-ignore
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, drawingInfo.indices, gl.STATIC_DRAW);
+  await loadObj(
+    posBuffer,
+    normalBuffer,
+    indexBuffer,
+    "https://www.student.dtu.dk/~s185126/02561/teapot.obj"
+  );
 
   gl.activeTexture(gl.TEXTURE0);
   let texture0 = gl.createTexture();

@@ -117,7 +117,7 @@
         background-color: rgba(0, 0, 0, 0.4);
       }
 
-      .modal-header {
+      .flex-between {
         display: flex;
         flex-direction: row;
         justify-content: space-between;
@@ -161,7 +161,7 @@
   <body>
     <div id="matcap-modal" class="modal hidden">
       <div class="modal-content">
-        <div class="modal-header">
+        <div class="modal-header flex-between">
           <h3>Select a MatCap from the library</h3>
           <span id="modal-close" class="modal-close">&times;</span>
         </div>
@@ -182,6 +182,19 @@
         <div class="float-input-group">
           <input type="url" name="matcapUrl" id="matcapUrl" />
           <button id="set-url" class="button">Load</button>
+        </div>
+
+        <label for="editorButton">Use model</label>
+        <div class="float-input-group flex-between">
+          <button id="editor-toggle-button" class="button" name="editorButton">
+            Teapot
+          </button>
+          <button id="editor-toggle-button" class="button" name="editorButton">
+            Suzanne
+          </button>
+          <button id="editor-toggle-button" class="button" name="editorButton">
+            Mystery
+          </button>
         </div>
 
         <label for="editorButton">Open MatCap image editor</label>
