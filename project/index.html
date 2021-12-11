@@ -88,6 +88,8 @@
 
       #editor-view .img-wrapper {
         display: block;
+      }
+      #editor-view img {
         max-width: var(--sidebar-width);
       }
       .cropper-view-box,
@@ -117,12 +119,15 @@
             name="editorButton"
             id="editorButton"
           >
-            Close Editor
+            Minimize Editor
           </button>
         </div>
 
         <div id="editor-view" class="">
-          <label>Croppable source</label>
+          <label
+            >Croppable source
+            <a id="reset-crop" style="cursor: pointer">reset crop</a></label
+          >
           <div class="img-wrapper">
             <img
               id="matcap-raw"
@@ -143,8 +148,8 @@
       const SIDEBAR = "side-bar";
       const SHRUNKEN = "shrunk-view";
       const HIDDEN = "hidden";
-      const BTN_TEXT_OPEN = "Open Editor";
-      const BTN_TEXT_CLOSE = "Close Editor";
+      const BTN_TEXT_OPEN = "Expand Editor";
+      const BTN_TEXT_CLOSE = "Minimize Editor";
 
       const view = document.getElementById("view");
       const editor = document.getElementById("editor-view");
@@ -163,7 +168,9 @@
 
       const matcapRaw = document.getElementById("matcap-raw");
       const matcap = document.getElementById("matcap");
+      const resetMatCapBtn = document.getElementById("reset-crop");
       let ctx;
+
       const getRoundedCanvas = (sourceCanvas) => {
         let canvas = document.createElement("canvas");
         let context = canvas.getContext("2d");
@@ -212,10 +219,11 @@
         matcap.src = roundedCanvas.toDataURL();
       };
 
-      matcapRaw.onload = (e) => {
-        const image = e.target;
-
-        if (cropper != null) cropper.destroy();
+      matcapRaw.onload = ({ target: image }) => {
+        if (cropper != null) {
+          resetMatCapBtn.onclick = undefined;
+          cropper.destroy();
+        }
 
         cropper = new Cropper(image, {
           aspectRatio: 1,
@@ -226,13 +234,35 @@
             croppable = true;
 
             transferCroppedImage(this.cropper);
+            resetMatCapBtn.onclick = (e) => {
+              this.cropper.reset();
+              transferCroppedImage(this.cropper);
+            };
           },
           cropend: function (event) {
-            console.log(event.detail);
+            //console.log(event.detail);
             if (!croppable) return;
             transferCroppedImage(this.cropper);
           },
         });
+      };
+
+      const matCapUrl = document.getElementById("matcapUrl");
+      const matCapUrlBtn = document.getElementById("set-url");
+      const setMatcapUrl = ({ value }, matcapEl) => {
+        console.info("Set matcap to: ", value);
+        matcapEl.src = value;
+      };
+
+      matCapUrl.addEventListener("keyup", (event) => {
+        if (event.key !== "Enter") return;
+
+        setMatcapUrl(event.target, matcapRaw);
+        event.preventDefault();
+      });
+      matCapUrlBtn.onclick = (event) => {
+        setMatcapUrl(matCapUrl, matcapRaw);
+        event.preventDefault();
       };
     </script>
     <script src="../common/webgl-utils.js"></script>

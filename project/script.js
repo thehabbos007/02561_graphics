@@ -1,4 +1,5 @@
 const canvas = document.getElementById("view");
+const matCapImg = document.getElementById("matcap");
 let gl, model;
 let drawLen = 0;
 let currentAngle = [0.0, 0.0]; // [x-axis, y-axis] degrees
@@ -135,14 +136,6 @@ const makeFloorVerts = () => {
   return result;
 };
 
-let loadImage = async (src) => {
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.src = src;
-  await img.decode();
-  return img;
-};
-
 const render = () => {
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
@@ -194,6 +187,14 @@ const onResize = () => {
     canvas.width = width;
     canvas.height = height;
   }
+};
+
+const bufferImage = (img) => {
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 };
 
 const init = async () => {
@@ -266,16 +267,17 @@ const init = async () => {
   // prettier-ignore
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, drawingInfo.indices, gl.STATIC_DRAW);
 
-  let img = await loadImage(
-    "https://mua.github.io/models/matcap/test_gold.jpg"
-  );
   gl.activeTexture(gl.TEXTURE0);
   let texture0 = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture0);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  await matCapImg.decode();
+  bufferImage(matCapImg);
+
+  matCapImg.onload = ({ target: img }) => {
+    bufferImage(img);
+  };
 
   onResize();
   tick();
