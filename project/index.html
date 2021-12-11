@@ -99,16 +99,89 @@
         border-width: 2px;
       }
     </style>
+
+    <style>
+      .modal {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: fixed;
+        z-index: 1;
+        padding-top: 100px;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgb(0, 0, 0);
+        background-color: rgba(0, 0, 0, 0.4);
+      }
+
+      .modal-header {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+      }
+      .modal-content {
+        background-color: #fefefe;
+        margin: auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+      }
+
+      .modal-close {
+        color: #aaaaaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+      }
+
+      .modal-close:hover,
+      .modal-close:focus {
+        color: #000;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .image-grid {
+        width: 100%;
+        height: 70rem;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+
+        grid-auto-rows: auto;
+        grid-column-gap: 10px;
+        grid-row-gap: 10px;
+        overflow-y: scroll;
+      }
+    </style>
   </header>
 
   <body>
+    <div id="matcap-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Select a MatCap from the library</h3>
+          <span id="modal-close" class="modal-close">&times;</span>
+        </div>
+
+        <div class="modal-body">
+          <div id="image-grid" class="image-grid"></div>
+        </div>
+      </div>
+    </div>
     <div id="floating-controls" class="side-bar">
       <h3>MatCap editor/viewer</h3>
       <div class="pane-controls">
-        <label for="matcapUrl">Load MatCap from URL:</label>
+        <button id="modal-button" class="button wide">
+          Browse Images and MatCaps
+        </button>
+
+        <label for="matcapUrl">Load image from URL:</label>
         <div class="float-input-group">
           <input type="url" name="matcapUrl" id="matcapUrl" />
-          <button id="set-url" class="button">Set</button>
+          <button id="set-url" class="button">Load</button>
         </div>
 
         <label for="editorButton">Open MatCap image editor</label>
@@ -117,7 +190,6 @@
             id="editor-toggle-button"
             class="button wide"
             name="editorButton"
-            id="editorButton"
           >
             Minimize Editor
           </button>
@@ -129,11 +201,7 @@
             <a id="reset-crop" style="cursor: pointer">reset crop</a></label
           >
           <div class="img-wrapper">
-            <img
-              id="matcap-raw"
-              src="https://mua.github.io/models/matcap/test_gold.jpg"
-              alt=""
-            />
+            <img id="matcap-raw" src="./assets/54.png" />
           </div>
 
           <br />
@@ -263,6 +331,43 @@
       matCapUrlBtn.onclick = (event) => {
         setMatcapUrl(matCapUrl, matcapRaw);
         event.preventDefault();
+      };
+
+      const modal = document.getElementById("matcap-modal");
+      const openModal = document.getElementById("modal-button");
+      const closeModal = document.getElementById("modal-close");
+
+      openModal.onclick = function () {
+        modal.classList.remove(HIDDEN);
+      };
+
+      closeModal.onclick = function () {
+        modal.classList.add(HIDDEN);
+      };
+
+      window.onclick = function (event) {
+        if (event.target == modal) {
+          modal.classList.add(HIDDEN);
+        }
+      };
+
+      document.addEventListener("keyup", (event) => {
+        if (event.key !== "Escape") return;
+        modal.classList.add(HIDDEN);
+        event.preventDefault();
+      });
+
+      const imageGrid = document.getElementById("image-grid");
+      for (let index = 0; index <= 55; index++) {
+        const imageEl = document.createElement("img");
+        imageEl.src = `./assets/${index}.png`;
+        imageGrid.appendChild(imageEl);
+      }
+
+      imageGrid.onclick = (e) => {
+        let source = e.target.src;
+        setMatcapUrl({ value: source }, matcapRaw);
+        modal.classList.add(HIDDEN);
       };
     </script>
     <script src="../common/webgl-utils.js"></script>
