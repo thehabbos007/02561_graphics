@@ -55,6 +55,28 @@ const initSliderWithValue = (el, sliderCallback) => {
   };
 };
 
+const initCheckboxedSlider = (checkboxEl, sliderEl, callback) => {
+  let checked = false;
+  checked = initToggleCheckbox(checkboxEl, (value) => {
+    checked = value;
+    if (checked) {
+      const value = parseFloat(sliderEl.value);
+      callback(value);
+    } else {
+      callback(null);
+    }
+  });
+  const value = parseFloat(sliderEl.value);
+  if (checked) callback(value);
+
+  sliderEl.onchange = (e) => {
+    const value = parseFloat(e.target.value);
+    if (checked) {
+      callback(value);
+    }
+  };
+};
+
 const initColorInput = (el, colorCallback) => {
   const initialValue = el.value
     .match(/[A-Za-z0-9]{2}/g)

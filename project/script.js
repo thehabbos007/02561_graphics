@@ -84,6 +84,10 @@ const initViewEventHandlers = (canvas) => {
 
   let last = Date.now();
 
+  const dolly = (eyeDistPan) => {
+    eyeDistPan[0] = Math.min(Math.max(eyeDistPan[0], 1.1), 50);
+  };
+
   canvas.onmousemove = function (ev) {
     // Mouse is moved
     let x = ev.clientX;
@@ -111,7 +115,9 @@ const initViewEventHandlers = (canvas) => {
           break;
         case DOLLY:
           eyeDistPan[0] += (sY - sLastY) * eyeDistPan[0] * 0.25;
-          eyeDistPan[0] = Math.max(eyeDistPan[0], 1.1);
+          dolly(eyeDistPan);
+          //eyeDistPan[0] = Math.min(Math.max(eyeDistPan[0], 1.1), 5);
+          //console.log(eyeDistPan[0]);
 
           break;
         case PAN:
@@ -130,7 +136,7 @@ const initViewEventHandlers = (canvas) => {
     e.preventDefault();
     const delta = e.deltaY < 0 ? -scrollFactor : scrollFactor;
     eyeDistPan[0] = eyeDistPan[0] + delta * eyeDistPan[0] * 0.25;
-    eyeDistPan[0] = Math.max(eyeDistPan[0], 1.1);
+    dolly(eyeDistPan);
   };
 };
 
@@ -171,7 +177,7 @@ const render = () => {
   );
 
   const v = newLookAt;
-  const p = perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 10);
+  const p = perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 55);
 
   gl.uniformMatrix4fv(gl.mUniform, false, flatten(m));
   gl.uniformMatrix4fv(gl.vUniform, false, flatten(v));
@@ -239,7 +245,8 @@ const init = async () => {
 
   let program = initShaders(gl, "vertex-shader", "fragment-shader");
   gl.useProgram(program);
-  gl.clearColor(1, 1, 1, 1);
+  gl.clearColor(...[...color, 1]);
+
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.enable(gl.DEPTH_TEST);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
