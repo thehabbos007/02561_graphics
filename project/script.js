@@ -1,5 +1,7 @@
 const canvas = document.getElementById("view");
 const matCapImg = document.getElementById("matcap");
+const modelSelector = document.getElementById("model-selector");
+
 let gl, model;
 let drawLen = 0;
 let currentAngle = [0.0, 0.0]; // [x-axis, y-axis] degrees
@@ -7,7 +9,7 @@ let currentAngle = [0.0, 0.0]; // [x-axis, y-axis] degrees
 const eye = vec3(0, 0, 5);
 const lookat = vec3(0, 0, 0);
 let up = vec3(0, 1, 0);
-const m = translate(0, -0.5, 0);
+let m = translate(0, -0.5, 0);
 const v = lookAt(eye, lookat, up);
 
 const { ORBIT, DOLLY, PAN } = iota(0);
@@ -40,7 +42,7 @@ const projectToSphere = (x, y) => {
   return z;
 };
 
-const initEventHandlers = (canvas) => {
+const initViewEventHandlers = (canvas) => {
   let lastX = -1;
   let lastY = -1;
 
@@ -197,10 +199,16 @@ const bufferImage = (img) => {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 };
 
-const loadObj = async (posBuffer, normalBuffer, indexBuffer, objUrl) => {
+const loadObj = async (
+  posBuffer,
+  normalBuffer,
+  indexBuffer,
+  objUrl,
+  size = 0.4
+) => {
   let rawObjText = await fetch(objUrl).then((v) => v.text());
   let objDoc = new OBJDoc("obj");
-  objDoc.parse(rawObjText, 0.4, false);
+  objDoc.parse(rawObjText, size, false);
   let drawingInfo = objDoc.getDrawingInfo();
   drawLen = drawingInfo.indices.length;
 
@@ -246,7 +254,7 @@ const init = async () => {
   const materialDiffuse = vec4(0.8, 0.8, 0.8, 1.0);
   const materialSpecular = vec4(1.0, 0.829, 0.829, 1.0);
 
-  initEventHandlers(canvas);
+  initViewEventHandlers(canvas);
 
   gl.uniform4fv(
     gl.getUniformLocation(program, "lightPosition"),
@@ -274,6 +282,43 @@ const init = async () => {
     indexBuffer,
     "https://www.student.dtu.dk/~s185126/02561/teapot.obj"
   );
+
+  modelSelector.onclick = async (ev) => {
+    const target = ev.target;
+
+    switch (target.id) {
+      case "teapot":
+        await loadObj(
+          posBuffer,
+          normalBuffer,
+          indexBuffer,
+          "https://www.student.dtu.dk/~s185126/02561/teapot.obj"
+        );
+        m = translate(0, -0.5, 0);
+        break;
+      case "monke":
+        await loadObj(
+          posBuffer,
+          normalBuffer,
+          indexBuffer,
+          "https://www.student.dtu.dk/~s185126/02561/suzanne.obj",
+          0.7
+        );
+        m = translate(0, 0, 0);
+        break;
+      case "mystery":
+        await loadObj(
+          posBuffer,
+          normalBuffer,
+          indexBuffer,
+          "https://www.student.dtu.dk/~s185126/02561/remy.obj"
+        );
+        m = translate(0, -0.2, 0);
+        break;
+      default:
+        break;
+    }
+  };
 
   gl.activeTexture(gl.TEXTURE0);
   let texture0 = gl.createTexture();
