@@ -1,9 +1,16 @@
 const canvas = document.getElementById("view");
 const matCapImg = document.getElementById("matcap");
 const modelSelector = document.getElementById("model-selector");
+const backgroundColor = document.getElementById("color");
 
 let gl, model;
 let drawLen = 0;
+let color = [1, 1, 1];
+
+color = initColorInput(backgroundColor, (v) => {
+  color = v;
+});
+
 let currentAngle = [0.0, 0.0]; // [x-axis, y-axis] degrees
 
 const eye = vec3(0, 0, 5);
@@ -141,9 +148,8 @@ const makeFloorVerts = () => {
 const render = () => {
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-  gl.enable(gl.SCISSOR_TEST);
-  gl.scissor(1, 1, gl.canvas.width - 2, gl.canvas.height - 2);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.clearColor(...[...color, 1]);
+
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   const rUp = qrot.apply(up);

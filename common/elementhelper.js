@@ -55,6 +55,22 @@ const initSliderWithValue = (el, sliderCallback) => {
   };
 };
 
+const initColorInput = (el, colorCallback) => {
+  const initialValue = el.value
+    .match(/[A-Za-z0-9]{2}/g)
+    .map((v) => parseInt(v, 16) / 255);
+
+  colorCallback(initialValue);
+  el.oninput = (e) => {
+    const value = el.value
+      .match(/[A-Za-z0-9]{2}/g)
+      .map((v) => parseInt(v, 16) / 255);
+    colorCallback(value);
+  };
+
+  return initialValue;
+};
+
 const initToggleCheckbox = (el, callback) => {
   const currentCheckedState = el.checked;
   el.oninput = (e) => {

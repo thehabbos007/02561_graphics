@@ -6,7 +6,7 @@
     <script src="../common/cropper.min.js"></script>
     <style>
       :root {
-        --sidebar-width: 40rem;
+        --sidebar-width: 38rem;
       }
 
       body {
@@ -35,6 +35,7 @@
 
       .side-bar {
         position: relative;
+        overflow-y: scroll;
         height: 100vh;
       }
 
@@ -145,6 +146,19 @@
         overflow-y: scroll;
       }
 
+      .flex-center {
+        align-items: center;
+      }
+
+      #color {
+        width: 20rem;
+        margin-bottom: 0;
+      }
+
+      .mb-1 {
+        margin-bottom: 1rem;
+      }
+
       .image-grid img {
         width: 100%;
       }
@@ -177,16 +191,21 @@
           <button id="set-url" class="button">Load</button>
         </div>
 
-        <label for="editorButton">Use model</label>
-        <div id="model-selector" class="float-input-group flex-between">
+        <div
+          id="model-selector"
+          class="float-input-group flex-between flex-center"
+        >
+          <label>Model:</label>
           <button id="teapot" class="button" name="editorButton">Teapot</button>
           <button id="monke" class="button" name="editorButton">Suzanne</button>
-          <button id="mystery" class="button" name="editorButton">
-            Mystery
-          </button>
+          <button id="mystery" class="button" name="editorButton">Remy</button>
         </div>
 
-        <label for="editorButton">Open MatCap image editor</label>
+        <div class="float-input-group flex-between flex-center mb-1">
+          <label for="color">Background color:</label>
+          <input type="color" name="color" id="color" value="#FFFFFF" />
+        </div>
+
         <div class="float-input-group">
           <button
             id="editor-toggle-button"
