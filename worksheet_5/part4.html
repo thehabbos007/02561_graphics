@@ -20,7 +20,7 @@
   </header>
 
   <body>
-    <p>Part 4</p>
+    <p>Worksheet 5 part 4</p>
     <div class="slider-input-group">
       <label for="Ka">Ka</label>
       <input
@@ -236,11 +236,7 @@
           gl.uniform1f(gl.umaterialShininess, value);
         });
 
-        initObject(
-          gl,
-          "http://www.student.dtu.dk/~s185126/02561/remister.obj",
-          0.2
-        );
+        initObject(gl, "../models/remy.obj", 0.5);
 
         tick();
       };

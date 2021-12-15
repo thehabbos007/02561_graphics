@@ -20,7 +20,7 @@
   </header>
 
   <body>
-    <p>Part 1</p>
+    <p>Worksheet 9 part 1</p>
     <div class="slider-input-group">
       <label for="eyeView">eye</label>
       <input
@@ -193,9 +193,9 @@
 
         gl.getExtension("OES_element_index_uint");
 
-        let rawObjText = await fetch(
-          "http://www.student.dtu.dk/~s185126/02561/teapot.obj"
-        ).then((v) => v.text());
+        let rawObjText = await fetch("../models/teapot.obj").then((v) =>
+          v.text()
+        );
 
         let objDoc = new OBJDoc("teapot.obj");
         objDoc.parse(rawObjText, 0.25, false);

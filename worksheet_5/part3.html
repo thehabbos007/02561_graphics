@@ -20,7 +20,7 @@
   </header>
 
   <body>
-    <p>Part 3</p>
+    <p>Worksheet 5 part 3 (parts 2 and 3 build up to this)</p>
     <canvas id="view" width="512" height="512"></canvas>
 
     <script src="../common/webgl-utils.js"></script>
@@ -101,11 +101,7 @@
         gl.pUniform = gl.getUniformLocation(program, "uProjection");
         gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
 
-        initObject(
-          gl,
-          "http://www.student.dtu.dk/~s185126/02561/remister.obj",
-          0.2
-        );
+        initObject(gl, "../models/remy.obj", 0.5);
 
         tick();
       };

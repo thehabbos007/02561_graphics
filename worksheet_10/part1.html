@@ -20,7 +20,7 @@
   </header>
 
   <body>
-    <p>Part 1</p>
+    <p>Worksheet 10 part 1</p>
     <canvas id="view" width="512" height="512"></canvas>
 
     <script src="../common/webgl-utils.js"></script>
@@ -208,10 +208,10 @@
         );
         gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
 
-        let rawObjText = await fetch(
-          "http://www.student.dtu.dk/~s185126/02561/teapot.obj"
-        ).then((v) => v.text());
-        let objDoc = new OBJDoc("remister.obj");
+        let rawObjText = await fetch("../models/teapot.obj").then((v) =>
+          v.text()
+        );
+        let objDoc = new OBJDoc("teapot.obj");
         objDoc.parse(rawObjText, 0.4, false);
         let drawingInfo = objDoc.getDrawingInfo();
         drawLen = drawingInfo.indices.length;

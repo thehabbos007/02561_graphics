@@ -5,7 +5,7 @@
   </header>
 
   <body>
-    <p>Oiaaaaaaaa</p>
+    <p>Worksheet 7 part 4</p>
 
     <canvas id="view" width="512" height="512"></canvas>
 
@@ -71,12 +71,12 @@
     </script>
     <script>
       const cubemap = [
-        "http://www.student.dtu.dk/~s185126/02561/textures_7/cm_left.png",
-        "http://www.student.dtu.dk/~s185126/02561/textures_7/cm_right.png",
-        "http://www.student.dtu.dk/~s185126/02561/textures_7/cm_top.png",
-        "http://www.student.dtu.dk/~s185126/02561/textures_7/cm_bottom.png",
-        "http://www.student.dtu.dk/~s185126/02561/textures_7/cm_back.png",
-        "http://www.student.dtu.dk/~s185126/02561/textures_7/cm_front.png",
+        "./textures/cm_left.png",
+        "./textures/cm_right.png",
+        "./textures/cm_top.png",
+        "./textures/cm_bottom.png",
+        "./textures/cm_back.png",
+        "./textures/cm_front.png",
       ];
       const canvas = document.getElementById("view");
       let gl;
@@ -199,9 +199,7 @@
           })
         );
 
-        const bumpyTexture = await loadImage(
-          "http://www.student.dtu.dk/~s185126/02561/textures_7/normalmap.png"
-        );
+        const bumpyTexture = await loadImage("./textures/normalmap.png");
         gl.activeTexture(gl.TEXTURE1);
         let texture1 = gl.createTexture();
         var bumpLocation = gl.getUniformLocation(program, "uBumpy");

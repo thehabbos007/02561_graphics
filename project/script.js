@@ -276,12 +276,7 @@ const init = async () => {
 
   let indexBuffer = gl.createBuffer();
 
-  await loadObj(
-    posBuffer,
-    normalBuffer,
-    indexBuffer,
-    "https://www.student.dtu.dk/~s185126/02561/teapot.obj"
-  );
+  await loadObj(posBuffer, normalBuffer, indexBuffer, "../models/teapot.obj");
 
   modelSelector.onclick = async (ev) => {
     const target = ev.target;
@@ -292,7 +287,7 @@ const init = async () => {
           posBuffer,
           normalBuffer,
           indexBuffer,
-          "https://www.student.dtu.dk/~s185126/02561/teapot.obj"
+          "../models/teapot.obj"
         );
         m = translate(0, -0.5, 0);
         break;
@@ -301,7 +296,7 @@ const init = async () => {
           posBuffer,
           normalBuffer,
           indexBuffer,
-          "https://www.student.dtu.dk/~s185126/02561/suzanne.obj",
+          "../models/suzanne.obj",
           0.7
         );
         m = translate(0, 0, 0);
@@ -311,7 +306,7 @@ const init = async () => {
           posBuffer,
           normalBuffer,
           indexBuffer,
-          "https://www.student.dtu.dk/~s185126/02561/remy.obj"
+          "../models/remy.obj"
         );
         m = translate(0, -0.2, 0);
         break;

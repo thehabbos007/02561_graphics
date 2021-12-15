@@ -20,7 +20,7 @@
   </header>
 
   <body>
-    <p>Part 3</p>
+    <p>Worksheet 10 part 3</p>
     <canvas id="view" width="512" height="512"></canvas>
 
     <script src="../common/webgl-utils.js"></script>
@@ -210,6 +210,8 @@
                 // prettier-ignore
                 const v2 = new vec3(sLastX, sLastY, projectToSphere(sLastX, sLastY));
                 qinc = qinc.make_rot_vec2vec(normalize(v1), normalize(v2));
+                qrot = qrot.multiply(qinc);
+
                 break;
               case DOLLY:
                 eyeDistPan[0] += (sY - sLastY) * eyeDistPan[0] * 0.25;
@@ -282,10 +284,10 @@
         );
         gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
 
-        let rawObjText = await fetch(
-          "http://www.student.dtu.dk/~s185126/02561/teapot.obj"
-        ).then((v) => v.text());
-        let objDoc = new OBJDoc("remister.obj");
+        let rawObjText = await fetch("../models/teapot.obj").then((v) =>
+          v.text()
+        );
+        let objDoc = new OBJDoc("teapot.obj");
         objDoc.parse(rawObjText, 0.4, false);
         let drawingInfo = objDoc.getDrawingInfo();
         drawLen = drawingInfo.indices.length;
@@ -342,8 +344,6 @@
       };
 
       const tick = () => {
-        qrot = qrot.multiply(qinc);
-
         rotation += 0.01;
         render();
         requestAnimFrame(tick);

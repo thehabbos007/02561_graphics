@@ -9,16 +9,7 @@
     </style>
   </header>
   <body>
-    <p>Part 3</p>
-    <div style="display: flex; width: 512px; align-items: center">
-      <button id="dec" style="flex: auto">- decrease</button>
-      <div style="padding: 0 12px; text-align: center">
-        subdivisions:
-        <br />
-        <span id="counter"></span>
-      </div>
-      <button id="inc" style="flex: auto">+ increase</button>
-    </div>
+    <p>Worksheet 6 part 3</p>
     <canvas id="view" width="512" height="512"></canvas>
 
     <script src="../common/webgl-utils.js"></script>
@@ -76,16 +67,11 @@
 
     <script>
       const canvas = document.getElementById("view");
-      const counter = document.getElementById("counter");
-      const inc = document.getElementById("inc");
-      const dec = document.getElementById("dec");
 
       let gl;
       let rotation = 0;
       let pointsCount = 0;
       let subdivision = 5;
-      const refreshCounter = () => (counter.textContent = subdivision);
-      refreshCounter();
 
       const va = vec4(0.0, 0.0, -1.0, 1);
       const vb = vec4(0.0, 0.942809, 0.333333, 1);
@@ -174,7 +160,7 @@
 
         const img = new Image();
         img.crossOrigin = "anonymous";
-        img.src = "http://www.student.dtu.dk/~s185126/02561/earth.jpg";
+        img.src = "./earth.jpg";
         await img.decode();
 
         let texture = gl.createTexture();
