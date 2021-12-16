@@ -75,6 +75,8 @@ const initCheckboxedSlider = (checkboxEl, sliderEl, callback) => {
       callback(value);
     }
   };
+
+  return checked ? value : null;
 };
 
 const initColorInput = (el, colorCallback) => {

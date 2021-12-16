@@ -314,7 +314,7 @@
         if (distortion != null) {
           let fisheye = new Fisheye(fish);
 
-          fisheye.setDistortion(distortion, distortion, distortion);
+          fisheye.setDistortion(distortion);
           fisheye.draw(sourceCanvas);
           targetCanvas = fish;
         }
@@ -322,7 +322,6 @@
         let canvas = document.createElement("canvas");
         let context = canvas.getContext("2d");
 
-        ctx = context;
         context.fill();
 
         canvas.width = width;
@@ -350,8 +349,8 @@
           0,
           2 * Math.PI
         );
-        ctx.rect(width, 0, -width, height);
-        ctx.fill();
+        context.rect(width, 0, -width, height);
+        context.fill();
 
         return canvas;
       };
@@ -464,13 +463,9 @@
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
       precision highp float;
-      uniform mat4 uView;
 
-      uniform vec4 lightDiffuse;
-      uniform vec4 materialAmbient;
-      uniform vec4 materialDiffuse;
-      uniform vec4 materialSpecular;
       uniform sampler2D matCap;
+      uniform mat4 uView;
 
       varying vec3 vNormal;
 

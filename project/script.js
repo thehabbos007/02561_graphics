@@ -15,8 +15,8 @@ let currentAngle = [0.0, 0.0]; // [x-axis, y-axis] degrees
 
 const eye = vec3(0, 0, 5);
 const lookat = vec3(0, 0, 0);
-let up = vec3(0, 1, 0);
 let m = translate(0, -0.5, 0);
+let up = vec3(0, 1, 0);
 const v = lookAt(eye, lookat, up);
 
 const { ORBIT, DOLLY, PAN } = iota(0);
@@ -72,10 +72,6 @@ const initViewEventHandlers = (canvas) => {
   };
 
   canvas.onmouseup = function (e) {
-    // let x = e.clientX;
-    // let y = e.clientY;
-    // if (x === lastX && y === lastY) {
-    // }
     qinc.setIdentity();
     interactionState = -1;
   };
@@ -260,27 +256,7 @@ const init = async () => {
   gl.pUniform = gl.getUniformLocation(program, "uProjection");
   gl.nmUniform = gl.getUniformLocation(program, "normalMatrix");
 
-  const lightPosition = vec4(1, 0, -1, 0);
-
-  const lightDiffuse = vec4(0.5, 0.5, 0.5, 1.0);
-  const materialAmbient = vec4(0.1, 0.1, 0.1, 1.0);
-  const materialDiffuse = vec4(0.8, 0.8, 0.8, 1.0);
-  const materialSpecular = vec4(1.0, 0.829, 0.829, 1.0);
-
   initViewEventHandlers(canvas);
-
-  gl.uniform4fv(
-    gl.getUniformLocation(program, "lightPosition"),
-    flatten(lightPosition)
-  );
-  gl.ulightDiffuse = gl.getUniformLocation(program, "lightDiffuse");
-  gl.uniform4fv(gl.ulightDiffuse, flatten(lightDiffuse));
-  gl.umaterialAmbient = gl.getUniformLocation(program, "materialAmbient");
-  gl.uniform4fv(gl.umaterialAmbient, flatten(materialAmbient));
-  gl.umaterialDiffuse = gl.getUniformLocation(program, "materialDiffuse");
-  gl.uniform4fv(gl.umaterialDiffuse, flatten(materialDiffuse));
-  gl.umaterialSpecular = gl.getUniformLocation(program, "materialSpecular");
-  gl.uniform4fv(gl.umaterialSpecular, flatten(materialSpecular));
 
   let posBuffer = gl.createBuffer();
   initBuffer(gl, posBuffer, program, "aPosition", 3, gl.FLOAT);
