@@ -241,8 +241,8 @@
             />
             <input
               type="range"
-              min="-10"
-              max="10"
+              min="-20"
+              max="20"
               value="5"
               step="0.1"
               name="distort"
@@ -256,10 +256,89 @@
       </div>
     </div>
     <canvas id="view" class="shrunk-view"></canvas>
-    <canvas id="fish" style="display: none"></canvas>
+    <canvas id="distort-canvas" style="display: none"></canvas>
 
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec4 aPosition;
+      attribute vec4 aNormal;
+
+      uniform mat4 uModel;
+      uniform mat4 uView;
+      uniform mat4 uProjection;
+
+      varying vec3 vPosition, vNormal;
+
+      void main() {
+        vPosition = aPosition.xyz;
+        vNormal = aNormal.xyz;
+
+        gl_Position = uProjection * uView * uModel  * aPosition;
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision highp float;
+
+      uniform sampler2D matCap;
+      uniform mat4 uView;
+
+      varying vec3 vNormal;
+
+      void main() {
+        vec2 eyeSpaceNormal = vec2(uView * vec4(normalize(vNormal), 0));
+        vec2 MCuv = eyeSpaceNormal * 0.5 + vec2(0.5, 0.5);
+        gl_FragColor = texture2D(matCap, MCuv);
+      }
+    </script>
+
+    <script id="brown-conrady-vert-shader" type="x-shader/x-vertex">
+      attribute vec3 aPos;
+      attribute vec2 aTexCoord;
+
+      varying highp vec2 vTexCoord, posv;
+      void main(void) {
+        vTexCoord = aTexCoord;
+        gl_Position = vec4(aPos, 1.0);
+      }
+    </script>
+    <script id="brown-conrady-frag-shader" type="x-shader/x-fragment">
+      precision mediump float;
+
+      uniform sampler2D imageTexture;
+      uniform mediump float uDistortionFactor;
+
+      varying highp vec2 vTexCoord;
+      // Thanks to https://github.com/ericleong/fisheye.js
+      void main(void) {
+        float rr = pow(vTexCoord.x - 0.5, 2.0) + pow(vTexCoord.y - 0.5, 2.0);
+        float viewScale = 1.0;
+        // Zoom in/out depending on distortion factor.
+        if (uDistortionFactor >= 0.0) {
+          viewScale = 1.0 + uDistortionFactor * 0.25;
+        } else {
+          viewScale = 1.0 / (1.0 - uDistortionFactor * 0.25);
+        }
+
+        vec2 distorted = vec2(0.5 + (vTexCoord.x - 0.5) * (1.0 + uDistortionFactor * rr) / viewScale,
+                              0.5 + (vTexCoord.y - 0.5) * (1.0 + uDistortionFactor * rr) / viewScale);
+
+        if (distorted.x < 0.0
+         || distorted.x > 1.0
+         || distorted.y < 0.0
+         || distorted.y > 1.0) {
+          gl_FragColor = vec4(0, 0, 0, 0);
+        } else {
+          gl_FragColor = texture2D(imageTexture, distorted);
+        }
+      }
+    </script>
+
+    <script src="../common/webgl-utils.js"></script>
+    <script src="../common/initShaders.js"></script>
+    <script src="../common/MV.js"></script>
+    <script src="../common/OBJParser.js"></script>
+    <script src="../common/quaternion.js"></script>
     <script src="../common/elementhelper.js"></script>
-    <script src="../common/fisheye.js"></script>
+    <script src="./RadialDistortion.js"></script>
     <script>
       const SIDEBAR = "side-bar";
       const SHRUNKEN = "shrunk-view";
@@ -268,7 +347,7 @@
       const BTN_TEXT_CLOSE = "Minimize Editor";
 
       const view = document.getElementById("view");
-      const fish = document.getElementById("fish");
+      const distortCanvas = document.getElementById("distort-canvas");
       const editor = document.getElementById("editor-view");
       const floatingCtl = document.getElementById("floating-controls");
       const editorButton = document.getElementById("editor-toggle-button");
@@ -299,6 +378,8 @@
         matcap.src = roundedCanvas.toDataURL();
       };
 
+      let radialDistort = new RadialDistort(distortCanvas);
+
       let distortion = null;
 
       distortion = initCheckboxedSlider(distortCheckEl, distortEl, (value) => {
@@ -312,11 +393,9 @@
 
         let targetCanvas = sourceCanvas;
         if (distortion != null) {
-          let fisheye = new Fisheye(fish);
-
-          fisheye.setDistortion(distortion);
-          fisheye.draw(sourceCanvas);
-          targetCanvas = fish;
+          radialDistort.distortWith(distortion);
+          radialDistort.draw(sourceCanvas);
+          targetCanvas = distortCanvas;
         }
 
         let canvas = document.createElement("canvas");
@@ -437,42 +516,6 @@
         setMatcapUrl({ value: source }, matcapRaw);
         modal.classList.add(HIDDEN);
       };
-    </script>
-    <script src="../common/webgl-utils.js"></script>
-    <script src="../common/initShaders.js"></script>
-    <script src="../common/MV.js"></script>
-    <script src="../common/OBJParser.js"></script>
-    <script src="../common/quaternion.js"></script>
-
-    <script id="vertex-shader" type="x-shader/x-vertex">
-      attribute vec4 aPosition;
-      attribute vec4 aNormal;
-
-      uniform mat4 uModel;
-      uniform mat4 uView;
-      uniform mat4 uProjection;
-
-      varying vec3 vPosition, vNormal;
-
-      void main() {
-        vPosition = aPosition.xyz;
-        vNormal = aNormal.xyz;
-
-        gl_Position = uProjection * uView * uModel  * aPosition;
-      }
-    </script>
-    <script id="fragment-shader" type="x-shader/x-fragment">
-      precision highp float;
-
-      uniform sampler2D matCap;
-      uniform mat4 uView;
-
-      varying vec3 vNormal;
-
-      void main() {
-        vec2 muv = vec2(uView * vec4(normalize(vNormal), 0))*0.5+vec2(0.5,0.5);
-        gl_FragColor = texture2D(matCap, vec2(muv.x, 1.0-muv.y));
-      }
     </script>
 
     <script src="script.js"></script>

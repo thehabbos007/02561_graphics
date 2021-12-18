@@ -123,35 +123,46 @@ class Fisheye {
 	uniform mediump float uDistortion;
 	uniform mediump float uRatio;
 
-	float computeScale(float distortion, float rsqLimit) {
-		if (distortion >= 0.0) {
-			return 1.0 + distortion * rsqLimit;
-		} else {
-			return 1.0 / (1.0 - distortion * rsqLimit);
-		}
-	}
-
+  
 	void main(void) {
-		float rsq;
-		float rsqLimit;
-		if (uRatio < 1.0) {
-			rsq = pow((vTextureCoord.x - 0.5) * uRatio, 2.0) + pow(vTextureCoord.y - 0.5, 2.0);
-			rsqLimit = (pow(0.5 * uRatio, 2.0) + pow(0.5, 2.0)) / (2.0 / uRatio);
-		} else {
-			rsq = pow(vTextureCoord.x - 0.5, 2.0) + pow((vTextureCoord.y - 0.5) / uRatio, 2.0);
-			rsqLimit = (pow(0.5, 2.0) + pow(0.5 / uRatio, 2.0)) / (2.0 * uRatio);
-		}
-
-		float scale = computeScale(uDistortion, rsqLimit);
-
-		gl_FragColor = vec4(0.0);
-
-    vec2 coord = vec2(0.5 + (vTextureCoord.x - 0.5) * (1.0 + uDistortion * rsq) / scale,
-                      0.5 + (vTextureCoord.y - 0.5) * (1.0 + uDistortion * rsq) / scale);
     
-    if (coord.x >= 0.0 && coord.x <= 1.0 && coord.y >= 0.0 && coord.y <= 1.0) {
-      gl_FragColor = texture2D(uImage, coord);
+    float rsq = pow(vTextureCoord.x - 0.5, 2.0) + pow(vTextureCoord.y - 0.5, 2.0);
+    float scale = 1.0;
+    if (uDistortion >= 0.0) {
+      scale = 1.0 + uDistortion * 0.25;
+    } else {
+      scale = 1.0 / (1.0 - uDistortion * 0.25);
     }
+
+    vec2 distorted = vec2(0.5 + (vTextureCoord.x - 0.5) * (1.0 + uDistortion * rsq)/ scale,
+                          0.5 + (vTextureCoord.y - 0.5) * (1.0 + uDistortion * rsq)/ scale);
+
+    if (distorted.x < 0.0 || distorted.x > 1.0 || distorted.y < 0.0 || distorted.y > 1.0) {
+      gl_FragColor = vec4(0, 0, 0, 0);
+    } else {
+      gl_FragColor = texture2D(uImage, distorted);
+    }
+
+		// float rsq;
+		// float rsqLimit;
+		// if (uRatio < 1.0) {
+		// 	rsq = pow((vTextureCoord.x - 0.5) * uRatio, 2.0) + pow(vTextureCoord.y - 0.5, 2.0);
+		// 	rsqLimit = (pow(0.5 * uRatio, 2.0) + pow(0.5, 2.0)) / (2.0 / uRatio);
+		// } else {
+		// 	rsq = pow(vTextureCoord.x - 0.5, 2.0) + pow((vTextureCoord.y - 0.5) / uRatio, 2.0);
+		// 	rsqLimit = (pow(0.5, 2.0) + pow(0.5 / uRatio, 2.0)) / (2.0 * uRatio);
+		// }
+
+		// float scale = computeScale(uDistortion, rsqLimit);
+
+		// gl_FragColor = vec4(0.0);
+
+    // vec2 coord = vec2(0.5 + (vTextureCoord.x - 0.5) * (1.0 + uDistortion * rsq) / scale,
+    //                   0.5 + (vTextureCoord.y - 0.5) * (1.0 + uDistortion * rsq) / scale);
+    
+    // if (coord.x >= 0.0 && coord.x <= 1.0 && coord.y >= 0.0 && coord.y <= 1.0) {
+    //   gl_FragColor = texture2D(uImage, coord);
+    // }
 	}`;
   }
 
