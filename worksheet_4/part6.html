@@ -1,0 +1,65 @@
+<html>
+  <header>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../milligram.css" />
+  </header>
+  <body>
+    <p>Worksheet 4 part 6</p>
+
+    <p>
+      a) What is the difference between Phong shading and Phong lighting (the
+      Phong reflection model)?
+      <b
+        >The Phong reflection model speicifes for a given point, how much light
+        is directed towards an observer through Diffuse, Specular and Ambient
+        terms.</b
+      >
+      <b
+        >Phong shading refers to the approximation of the of the shading of a
+        surface through linear interpolation.</b
+      >
+    </p>
+    <p>
+      b) What is the difference between flat shading, Gouraud shading, and Phong
+      shading? List pros and cons of each. Is Gouraud or Phong shading the best
+      method for simulating highlights? Explain.
+      <b
+        >Phong shading is the "best" method for simulating highlights. Gouraud
+        shading misses information about the highlights at vertices, which makes
+        highlihgts disappear from the polygon</b
+      >
+    </p>
+    <p>
+      c) What is the difference between a directional light and a point light?
+      <b
+        >Directional lights are infinitely far away, which means that the right
+        rays are considered parallel when they hit objects that should be
+        illuminated. Point lights have a position relavitve to objects and
+        dictate illumination by distance.</b
+      >
+    </p>
+    <p>
+      d) Does the eye position influence the shading of an object in any way?
+      <b
+        >Yes eye position does influence shading, as we calculate light rays
+        compared to the eye posiiton</b
+      >
+    </p>
+    <p>
+      e) What is the effect of setting the specular term to (0, 0, 0)?
+      <b>The specular light disappears from the illumination</b>
+    </p>
+    <p>
+      f) What is the effect of increasing the shininess exponent (𝛼)?
+      <b
+        >The specular highlight is reduced. The surface is mirror-like and
+        smoother.</b
+      >
+    </p>
+    <p>
+      g) In what coordinate space did you compute the lighting?<b
+        >In eye-space</b
+      >
+    </p>
+  </body>
+</html>
