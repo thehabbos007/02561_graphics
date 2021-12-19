@@ -266,12 +266,10 @@
       uniform mat4 uView;
       uniform mat4 uProjection;
 
-      varying vec3 vPosition, vNormal;
+      varying vec3 vNormal;
 
       void main() {
-        vPosition = aPosition.xyz;
-        vNormal = aNormal.xyz;
-
+        vNormal = normalize(vec3(uModel * aNormal));
         gl_Position = uProjection * uView * uModel  * aPosition;
       }
     </script>
@@ -284,7 +282,7 @@
       varying vec3 vNormal;
 
       void main() {
-        vec2 eyeSpaceNormal = vec2(uView * vec4(normalize(vNormal), 0));
+        vec2 eyeSpaceNormal = vec2(uView * vec4(vNormal, 0));
         vec2 MCuv = eyeSpaceNormal * 0.5 + vec2(0.5, 0.5);
         gl_FragColor = texture2D(matCap, MCuv);
       }
