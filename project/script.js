@@ -306,8 +306,9 @@ const init = async () => {
 
   gl.activeTexture(gl.TEXTURE0);
   let texture0 = gl.createTexture();
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   gl.bindTexture(gl.TEXTURE_2D, texture0);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
   await matCapImg.decode();
   bufferImage(matCapImg);
